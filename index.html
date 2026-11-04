@@ -286,7 +286,7 @@
         </div>
     </div>
 
-    <!-- Script Logika Lengkap -->
+    <!-- Script Logika Teroptimasi & Responsif -->
     <script>
         const KASIR_USER = "admin";
         const KASIR_PASS = "melky123";
@@ -300,7 +300,6 @@
         let pengumumanData = JSON.parse(localStorage.getItem('cafe_pengumuman')) || { status: "ON", teks: "✨ Selamat datang di Cafe Melky! ✨" };
         let nomorWaKasir = localStorage.getItem('cafe_wa') || "6281234567890";
 
-        // Logika PWA & Tombol Instal Otomatis
         let deferredPrompt;
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
@@ -314,7 +313,6 @@
             btnInstall.addEventListener('click', async () => {
                 if (deferredPrompt) {
                     deferredPrompt.prompt();
-                    const { outcome } = await deferredPrompt.userChoice;
                     deferredPrompt = null;
                     document.getElementById('install-banner').classList.add('hidden');
                 }
@@ -322,9 +320,7 @@
         }
 
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js')
-            .then(() => console.log('Service Worker Berhasil Didaftarkan'))
-            .catch((err) => console.log('Gagal daftar Service Worker:', err));
+            navigator.serviceWorker.register('sw.js').catch(() => {});
         }
 
         window.onload = function() {
@@ -377,7 +373,7 @@
             renderMenuPelanggan();
         }
 
-        // Render Menu Pelanggan dengan Info Jumlah (Qty) yang Sudah Dipilih
+        // Render Menu Pelanggan dengan Atribut Unik agar Update Instan Tanpa Delay
         function renderMenuPelanggan() {
             const container = document.getElementById('menu-pelanggan-list');
             let filtered = kategoriAktif === "Semua" ? daftarMenu : daftarMenu.filter(m => m.kategori === kategoriAktif);
@@ -389,9 +385,10 @@
 
             let html = "";
             filtered.forEach(item => {
-                // Cek apakah item ini sudah ada di keranjang untuk menampilkan jumlahnya
                 let itemDiKeranjang = keranjang.find(i => i.nama === item.nama);
                 let jumlahQty = itemDiKeranjang ? itemDiKeranjang.qty : 0;
+                // Buat ID unik untuk elemen qty di setiap kartu menu
+                let safeId = "qty-" + item.nama.replace(/[^a-zA-Z0-9]/g, "_");
 
                 html += `
                     <div class="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/50">
@@ -402,20 +399,38 @@
                             <span class="text-xs font-bold text-amber-700 mt-1 block">Rp${Number(item.harga).toLocaleString()}</span>
                         </div>
                         
-                        <!-- Bagian Tombol Tambah & Info Jumlah Pesanan Pelanggan -->
                         <div class="flex items-center gap-1.5">
-                            ${jumlahQty > 0 ? `
-                                <button onclick="kurangItemPelanggan('${item.nama}')" class="w-7 h-7 bg-red-100 text-red-700 rounded-lg font-bold text-xs flex items-center justify-center transition hover:bg-red-200">-</button>
-                                <span class="text-xs font-bold w-5 text-center">${jumlahQty}</span>
-                            ` : ''}
+                            <div id="${safeId}-container" class="flex items-center gap-1.5 ${jumlahQty > 0 ? '' : 'hidden'}">
+                                <button onclick="ubahQtyInstan('${item.nama}', -1)" class="w-7 h-7 bg-red-100 text-red-700 rounded-lg font-bold text-xs flex items-center justify-center hover:bg-red-200 transition">-</button>
+                                <span id="${safeId}" class="text-xs font-bold w-5 text-center">${jumlahQty}</span>
+                            </div>
                             <button onclick="tambahItem('${item.nama}', ${item.harga})" class="bg-[#35251e] text-white text-xs px-3 py-1.5 rounded-lg font-medium hover:bg-[#4a352c] transition">
-                                ${jumlahQty > 0 ? '+' : 'Tambah'}
+                                Tambah
                             </button>
                         </div>
                     </div>
                 `;
             });
             container.innerHTML = html;
+        }
+
+        // Fungsi Update Instan untuk Tombol Tanpa Reload Seluruh Menu
+        function updateTampilanQtyInstan(nama) {
+            let itemDiKeranjang = keranjang.find(i => i.nama === nama);
+            let jumlahQty = itemDiKeranjang ? itemDiKeranjang.qty : 0;
+            let safeId = "qty-" + nama.replace(/[^a-zA-Z0-9]/g, "_");
+            
+            let qtyEl = document.getElementById(safeId);
+            let containerEl = document.getElementById(safeId + "-container");
+
+            if (containerEl && qtyEl) {
+                if (jumlahQty > 0) {
+                    containerEl.classList.remove('hidden');
+                    qtyEl.innerText = jumlahQty;
+                } else {
+                    containerEl.classList.add('hidden');
+                }
+            }
         }
 
         function tambahItem(nama, harga) {
@@ -426,19 +441,7 @@
                 keranjang.push({ nama, harga, qty: 1 }); 
             }
             updateKeranjangUI();
-            renderMenuPelanggan(); // Perbarui tampilan daftar menu agar badge jumlah ikut terupdate
-        }
-
-        function kurangItemPelanggan(nama) {
-            let found = keranjang.find(i => i.nama === nama);
-            if (found) {
-                found.qty--;
-                if (found.qty <= 0) {
-                    keranjang = keranjang.filter(i => i.nama !== nama);
-                }
-            }
-            updateKeranjangUI();
-            renderMenuPelanggan();
+            updateTampilanQtyInstan(nama); // Update angka instan tanpa reload list menu
         }
 
         function updateKeranjangUI() {
@@ -466,8 +469,8 @@
                             <p class="text-amber-800">Rp${item.harga.toLocaleString()} x ${item.qty}</p>
                         </div>
                         <div class="space-x-1">
-                            <button onclick="ubahQty(${idx}, -1)" class="px-2 py-1 bg-slate-200 rounded font-bold">-</button>
-                            <button onclick="ubahQty(${idx}, 1)" class="px-2 py-1 bg-slate-200 rounded font-bold">+</button>
+                            <button onclick="ubahQtyModal(${idx}, -1)" class="px-2 py-1 bg-slate-200 rounded font-bold">-</button>
+                            <button onclick="ubahQtyModal(${idx}, 1)" class="px-2 py-1 bg-slate-200 rounded font-bold">+</button>
                         </div>
                     </div>
                 `;
@@ -475,11 +478,14 @@
             document.getElementById('list-detail-keranjang').innerHTML = listHtml || "<p class='text-xs text-slate-400 text-center'>Keranjang kosong.</p>";
         }
 
-        function ubahQty(idx, change) {
+        function ubahQtyModal(idx, change) {
+            let namaItem = keranjang[idx].nama;
             keranjang[idx].qty += change;
-            if (keranjang[idx].qty <= 0) keranjang.splice(idx, 1);
+            if (keranjang[idx].qty <= 0) {
+                keranjang.splice(idx, 1);
+            }
             updateKeranjangUI();
-            renderMenuPelanggan();
+            updateTampilanQtyInstan(namaItem);
         }
 
         function bukaModalKeranjang() { document.getElementById('modal-keranjang').classList.remove('hidden'); }
