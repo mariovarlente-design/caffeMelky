@@ -7,12 +7,12 @@
   "theme_color": "#35251e",
   "icons": [
     {
-      "src": "https://images.unsplash.com/photo-1541167760496-1628856ab772?w=192&q=80",
-      "sizes": "192x192",
+      "src": "https://jasindo.co.id/uploads/media/otwgs4vrqfbvvy30ymyeelsug-kopijpg",
+      "sizes": "512x512",
       "type": "image/jpeg"
     },
     {
-      "src": "https://images.unsplash.com/photo-1541167760496-1628856ab772?w=512&q=80",
+      "src": "https://jasindo.co.id/uploads/media/otwgs4vrqfbvvy30ymyeelsug-kopijpg",
       "sizes": "512x512",
       "type": "image/jpeg"
     }
