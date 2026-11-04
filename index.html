@@ -371,17 +371,21 @@ if ('serviceWorker' in navigator) {
                 .catch(err => console.error(err));
         }
 
-        function filterKategori(kat) {
-            kategoriAktif = kat;
-            document.querySelectorAll('.kat-btn').forEach(btn => {
-                if (btn.innerText.includes(kat)) {
-                    btn.className = "kat-btn bg-amber-800 text-white px-3.5 py-1.5 rounded-full whitespace-nowrap shadow-sm";
-                } else {
-                    btn.className = "kat-btn bg-white text-slate-700 border px-3.5 py-1.5 rounded-full whitespace-nowrap shadow-sm";
-                }
-            });
-            renderMenuPelanggan();
+      function filterKategori(kat) {
+    kategoriAktif = kat;
+    
+    // Perbarui warna semua tombol kategori dengan akurat
+    document.querySelectorAll('.kat-btn').forEach(btn => {
+        // Cek apakah teks tombol sesuai dengan kategori yang dipilih
+        if (btn.innerText.trim() === kat) {
+            btn.className = "kat-btn bg-amber-800 text-white px-3.5 py-1.5 rounded-full whitespace-nowrap shadow-sm transition-all";
+        } else {
+            btn.className = "kat-btn bg-white text-slate-700 border px-3.5 py-1.5 rounded-full whitespace-nowrap shadow-sm transition-all";
         }
+    });
+    
+    renderMenuPelanggan();
+}
 
         function renderMenuPelanggan() {
             const container = document.getElementById('menu-pelanggan-list');
