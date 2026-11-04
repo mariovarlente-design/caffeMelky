@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA Manifest & Tema HP -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#35251e">
+    <link rel="apple-touch-icon" href="https://images.unsplash.com/photo-1541167760496-1628856ab772?w=192&q=80">
     <title>Cafe Melky — Sistem Pesanan, Kasir & Penagihan Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -22,7 +26,7 @@
 </head>
 <body class="bg-[#fcfbf9] text-slate-800 antialiased pb-20">
 
-    <!-- Navigasi Utama -->
+  <!-- Navigasi Utama -->
     <nav class="bg-[#261a15] text-white py-3 px-6 shadow-md flex justify-between items-center text-xs sticky top-0 z-50">
         <span class="font-bold tracking-wider uppercase text-amber-200">Cafe Melky Portal</span>
         <div class="flex items-center space-x-2">
@@ -31,6 +35,15 @@
             <button onclick="switchView('kasir')" id="btn-kasir" class="bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg font-semibold transition">Login Kasir</button>
         </div>
     </nav>
+
+    <!-- Banner Notifikasi Instal PWA (Dipindah ke luar navigasi agar rapi) -->
+    <div id="install-banner" class="hidden bg-[#35251e] text-white px-4 py-3 mx-4 mt-3 rounded-2xl flex justify-between items-center shadow-lg text-xs max-w-md mx-auto">
+        <div>
+            <p class="font-bold">📱 Pasang Aplikasi Cafe Melky</p>
+            <p class="text-[10px] text-slate-300">Akses lebih cepat langsung dari layar utama HP Anda!</p>
+        </div>
+        <button id="btn-install" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-xl font-bold transition">Instal</button>
+    </div>
 
     <!-- ==================== VIEW 1: PELANGGAN ==================== -->
     <div id="view-pelanggan">
@@ -286,6 +299,39 @@
         let pengaturanBayar = JSON.parse(localStorage.getItem('cafe_bayar')) || { norek: "BCA: 8830192837 a.n Melky", qrisImg: "" };
         let pengumumanData = JSON.parse(localStorage.getItem('cafe_pengumuman')) || { status: "ON", teks: "✨ Selamat datang di Cafe Melky! ✨" };
         let nomorWaKasir = localStorage.getItem('cafe_wa') || "6281234567890";
+
+        // Logika PWA & Tombol Instal Otomatis
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    
+    // Munculkan banner instal
+    const banner = document.getElementById('install-banner');
+    if(banner) banner.classList.remove('hidden');
+});
+
+const btnInstall = document.getElementById('btn-install');
+if(btnInstall) {
+    btnInstall.addEventListener('click', async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                console.log('Pengguna menerima instalasi PWA');
+            }
+            deferredPrompt = null;
+            document.getElementById('install-banner').classList.add('hidden');
+        }
+    });
+}
+
+// Daftarkan Service Worker
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+    .then(() => console.log('Service Worker Berhasil Didaftarkan'))
+    .catch((err) => console.log('Gagal daftar Service Worker:', err));
+}
 
         window.onload = function() {
             ambilMenuDariSheets();
