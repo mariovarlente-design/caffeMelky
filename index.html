@@ -36,7 +36,7 @@
         </div>
     </nav>
 
-    <!-- Banner Notifikasi Instal PWA (Dipindah ke luar navigasi agar rapi) -->
+    <!-- Banner Notifikasi Instal PWA -->
     <div id="install-banner" class="hidden bg-[#35251e] text-white px-4 py-3 mx-4 mt-3 rounded-2xl flex justify-between items-center shadow-lg text-xs max-w-md mx-auto">
         <div>
             <p class="font-bold">📱 Pasang Aplikasi Cafe Melky</p>
@@ -88,7 +88,7 @@
                 </div>
             </section>
 
-            <!-- Floating Cart Button -->
+            <!-- Floating Cart Button (Keranjang Pelanggan) -->
             <div id="floating-cart" class="fixed bottom-4 left-4 right-4 max-w-md mx-auto bg-[#35251e] text-white p-3.5 rounded-2xl shadow-xl flex justify-between items-center z-40 transition-all duration-300 translate-y-24">
                 <div class="flex items-center gap-3">
                     <span class="bg-amber-700 px-2.5 py-1 rounded-xl text-xs font-bold" id="cart-count">0</span>
@@ -208,7 +208,7 @@
                 <div id="daftar-pesanan-kasir" class="space-y-3 max-h-96 overflow-y-auto"></div>
             </div>
 
-            <!-- Panel 2: Riwayat & Penagihan (Fitur Baru) -->
+            <!-- Panel 2: Riwayat & Penagihan -->
             <div id="panel-penagihan" class="space-y-3 hidden">
                 <div class="flex justify-between items-center">
                     <h3 class="font-bold text-xs text-slate-700 uppercase tracking-wide">Manajemen Penagihan Pelanggan</h3>
@@ -301,37 +301,31 @@
         let nomorWaKasir = localStorage.getItem('cafe_wa') || "6281234567890";
 
         // Logika PWA & Tombol Instal Otomatis
-let deferredPrompt;
-window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    
-    // Munculkan banner instal
-    const banner = document.getElementById('install-banner');
-    if(banner) banner.classList.remove('hidden');
-});
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const banner = document.getElementById('install-banner');
+            if(banner) banner.classList.remove('hidden');
+        });
 
-const btnInstall = document.getElementById('btn-install');
-if(btnInstall) {
-    btnInstall.addEventListener('click', async () => {
-        if (deferredPrompt) {
-            deferredPrompt.prompt();
-            const { outcome } = await deferredPrompt.userChoice;
-            if (outcome === 'accepted') {
-                console.log('Pengguna menerima instalasi PWA');
-            }
-            deferredPrompt = null;
-            document.getElementById('install-banner').classList.add('hidden');
+        const btnInstall = document.getElementById('btn-install');
+        if(btnInstall) {
+            btnInstall.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    deferredPrompt = null;
+                    document.getElementById('install-banner').classList.add('hidden');
+                }
+            });
         }
-    });
-}
 
-// Daftarkan Service Worker
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js')
-    .then(() => console.log('Service Worker Berhasil Didaftarkan'))
-    .catch((err) => console.log('Gagal daftar Service Worker:', err));
-}
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+            .then(() => console.log('Service Worker Berhasil Didaftarkan'))
+            .catch((err) => console.log('Gagal daftar Service Worker:', err));
+        }
 
         window.onload = function() {
             ambilMenuDariSheets();
@@ -371,22 +365,19 @@ if ('serviceWorker' in navigator) {
                 .catch(err => console.error(err));
         }
 
-      function filterKategori(kat) {
-    kategoriAktif = kat;
-    
-    // Perbarui warna semua tombol kategori dengan akurat
-    document.querySelectorAll('.kat-btn').forEach(btn => {
-        // Cek apakah teks tombol sesuai dengan kategori yang dipilih
-        if (btn.innerText.trim() === kat) {
-            btn.className = "kat-btn bg-amber-800 text-white px-3.5 py-1.5 rounded-full whitespace-nowrap shadow-sm transition-all";
-        } else {
-            btn.className = "kat-btn bg-white text-slate-700 border px-3.5 py-1.5 rounded-full whitespace-nowrap shadow-sm transition-all";
+        function filterKategori(kat) {
+            kategoriAktif = kat;
+            document.querySelectorAll('.kat-btn').forEach(btn => {
+                if (btn.innerText.trim() === kat) {
+                    btn.className = "kat-btn bg-amber-800 text-white px-3.5 py-1.5 rounded-full whitespace-nowrap shadow-sm transition-all";
+                } else {
+                    btn.className = "kat-btn bg-white text-slate-700 border px-3.5 py-1.5 rounded-full whitespace-nowrap shadow-sm transition-all";
+                }
+            });
+            renderMenuPelanggan();
         }
-    });
-    
-    renderMenuPelanggan();
-}
 
+        // Render Menu Pelanggan dengan Info Jumlah (Qty) yang Sudah Dipilih
         function renderMenuPelanggan() {
             const container = document.getElementById('menu-pelanggan-list');
             let filtered = kategoriAktif === "Semua" ? daftarMenu : daftarMenu.filter(m => m.kategori === kategoriAktif);
@@ -398,6 +389,10 @@ if ('serviceWorker' in navigator) {
 
             let html = "";
             filtered.forEach(item => {
+                // Cek apakah item ini sudah ada di keranjang untuk menampilkan jumlahnya
+                let itemDiKeranjang = keranjang.find(i => i.nama === item.nama);
+                let jumlahQty = itemDiKeranjang ? itemDiKeranjang.qty : 0;
+
                 html += `
                     <div class="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/50">
                         <img src="${item.img}" class="w-16 h-16 object-cover rounded-lg border">
@@ -406,7 +401,17 @@ if ('serviceWorker' in navigator) {
                             <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded">${item.kategori || 'Umum'}</span>
                             <span class="text-xs font-bold text-amber-700 mt-1 block">Rp${Number(item.harga).toLocaleString()}</span>
                         </div>
-                        <button onclick="tambahItem('${item.nama}', ${item.harga})" class="bg-[#35251e] text-white text-xs px-3 py-1.5 rounded-lg">Tambah</button>
+                        
+                        <!-- Bagian Tombol Tambah & Info Jumlah Pesanan Pelanggan -->
+                        <div class="flex items-center gap-1.5">
+                            ${jumlahQty > 0 ? `
+                                <button onclick="kurangItemPelanggan('${item.nama}')" class="w-7 h-7 bg-red-100 text-red-700 rounded-lg font-bold text-xs flex items-center justify-center transition hover:bg-red-200">-</button>
+                                <span class="text-xs font-bold w-5 text-center">${jumlahQty}</span>
+                            ` : ''}
+                            <button onclick="tambahItem('${item.nama}', ${item.harga})" class="bg-[#35251e] text-white text-xs px-3 py-1.5 rounded-lg font-medium hover:bg-[#4a352c] transition">
+                                ${jumlahQty > 0 ? '+' : 'Tambah'}
+                            </button>
+                        </div>
                     </div>
                 `;
             });
@@ -415,8 +420,25 @@ if ('serviceWorker' in navigator) {
 
         function tambahItem(nama, harga) {
             let found = keranjang.find(i => i.nama === nama);
-            if (found) { found.qty++; } else { keranjang.push({ nama, harga, qty: 1 }); }
+            if (found) { 
+                found.qty++; 
+            } else { 
+                keranjang.push({ nama, harga, qty: 1 }); 
+            }
             updateKeranjangUI();
+            renderMenuPelanggan(); // Perbarui tampilan daftar menu agar badge jumlah ikut terupdate
+        }
+
+        function kurangItemPelanggan(nama) {
+            let found = keranjang.find(i => i.nama === nama);
+            if (found) {
+                found.qty--;
+                if (found.qty <= 0) {
+                    keranjang = keranjang.filter(i => i.nama !== nama);
+                }
+            }
+            updateKeranjangUI();
+            renderMenuPelanggan();
         }
 
         function updateKeranjangUI() {
@@ -429,7 +451,11 @@ if ('serviceWorker' in navigator) {
             document.getElementById('order-total').innerText = `Rp${totalPrice.toLocaleString()}`;
 
             const floatingCart = document.getElementById('floating-cart');
-            if (totalQty > 0) { floatingCart.classList.remove('translate-y-24'); } else { floatingCart.classList.add('translate-y-24'); }
+            if (totalQty > 0) { 
+                floatingCart.classList.remove('translate-y-24'); 
+            } else { 
+                floatingCart.classList.add('translate-y-24'); 
+            }
 
             let listHtml = "";
             keranjang.forEach((item, idx) => {
@@ -440,8 +466,8 @@ if ('serviceWorker' in navigator) {
                             <p class="text-amber-800">Rp${item.harga.toLocaleString()} x ${item.qty}</p>
                         </div>
                         <div class="space-x-1">
-                            <button onclick="ubahQty(${idx}, -1)" class="px-2 py-1 bg-slate-200 rounded">-</button>
-                            <button onclick="ubahQty(${idx}, 1)" class="px-2 py-1 bg-slate-200 rounded">+</button>
+                            <button onclick="ubahQty(${idx}, -1)" class="px-2 py-1 bg-slate-200 rounded font-bold">-</button>
+                            <button onclick="ubahQty(${idx}, 1)" class="px-2 py-1 bg-slate-200 rounded font-bold">+</button>
                         </div>
                     </div>
                 `;
@@ -453,6 +479,7 @@ if ('serviceWorker' in navigator) {
             keranjang[idx].qty += change;
             if (keranjang[idx].qty <= 0) keranjang.splice(idx, 1);
             updateKeranjangUI();
+            renderMenuPelanggan();
         }
 
         function bukaModalKeranjang() { document.getElementById('modal-keranjang').classList.remove('hidden'); }
@@ -468,7 +495,6 @@ if ('serviceWorker' in navigator) {
             let total = keranjang.reduce((sum, i) => sum + (i.harga * i.qty), 0);
             let waktuKirim = new Date().toLocaleTimeString();
 
-            // Status pembayaran otomatis "Belum Lunas" jika Tunai atau Transfer, bisa diubah kasir nantinya.
             const pesananBaru = {
                 id: Date.now(),
                 nama,
@@ -492,11 +518,11 @@ if ('serviceWorker' in navigator) {
             alert("Pesanan berhasil dikirim!");
             keranjang = [];
             updateKeranjangUI();
+            renderMenuPelanggan();
             document.getElementById('form-pesanan').reset();
             tutupModalKeranjang();
         }
 
-        // Dashboard Kasir: Ubah Status & Cetak Nota
         function ubahStatusPesanan(id) {
             let p = daftarPesanan.find(x => x.id === id);
             if (p) {
@@ -506,7 +532,6 @@ if ('serviceWorker' in navigator) {
             }
         }
 
-        // Ubah Status Pembayaran (Lunas / Belum Lunas)
         function ubahStatusBayar(id) {
             let p = daftarPesanan.find(x => x.id === id);
             if (p) {
@@ -569,7 +594,6 @@ if ('serviceWorker' in navigator) {
             container.innerHTML = html;
         }
 
-        // Muat Riwayat & Penagihan Khusus Belum Bayar
         function muatPenagihanKasir() {
             const container = document.getElementById('daftar-penagihan-kasir');
             daftarPesanan = JSON.parse(localStorage.getItem('cafe_pesanan')) || [];
