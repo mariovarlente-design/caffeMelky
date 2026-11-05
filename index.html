@@ -21,7 +21,7 @@
     <!-- Firebase SDK (Modular via CDN) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, setDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, setDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         // Konfigurasi Firebase Anda
         const firebaseConfig = {
@@ -115,7 +115,6 @@
             }
         };
 
-        // Shortcut keyboard rahasia untuk PC (Ctrl + Shift + K)
         window.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'k') {
                 e.preventDefault();
@@ -123,7 +122,6 @@
             }
         });
 
-        // Shortcut khusus HP: Ketuk 3 kali pada logo/area judul
         let tapCount = 0;
         let tapTimer = null;
         window.bukaKasirViaTap = function() {
@@ -166,20 +164,28 @@
                     if (activeKategori !== 'Semua' && item.kategori !== activeKategori) return;
 
                     container.innerHTML += `
-                        <div onclick="tambahCartPelanggan('${id}', '${item.nama}', ${item.harga})" class="bg-gray-900 border border-gray-700 hover:border-yellow-500 rounded-xl overflow-hidden cursor-pointer transition group flex flex-col justify-between">
+                        <div class="bg-gray-900 border border-gray-700 hover:border-yellow-500 rounded-xl overflow-hidden transition group flex flex-col justify-between">
                             <div>
                                 <div class="h-32 w-full overflow-hidden bg-gray-800">
                                     <img src="${item.foto || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=500&q=80'}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
                                 </div>
                                 <div class="p-3">
                                     <span class="text-[10px] px-2 py-0.5 rounded bg-gray-800 text-yellow-500 font-medium">${item.kategori}</span>
-                                    <h3 class="font-semibold text-white group-hover:text-yellow-400 mt-1 text-sm">${item.nama}</h3>
+                                    <h3 class="font-semibold text-white mt-1 text-sm">${item.nama}</h3>
                                     <p class="text-xs text-gray-400 mt-0.5">Rp ${item.harga.toLocaleString('id-ID')}</p>
                                 </div>
                             </div>
-                            <div class="p-3 pt-0">
-                                <button class="w-full bg-yellow-500/10 group-hover:bg-yellow-500 text-yellow-500 group-hover:text-black py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1">
-                                    <i class="fas fa-plus"></i> Pilih Menu
+                            <div class="p-3 pt-0 space-y-2">
+                                <div class="flex gap-2">
+                                    <select id="suhu-${id}" class="w-1/2 bg-gray-800 border border-gray-700 rounded-lg p-1 text-[11px] text-white">
+                                        <option value="Es">Es</option>
+                                        <option value="Panas">Panas</option>
+                                        <option value="Normal">Normal</option>
+                                    </select>
+                                    <input type="text" id="catatan-${id}" placeholder="Catatan (Cth: Manis)" class="w-1/2 bg-gray-800 border border-gray-700 rounded-lg p-1 text-[11px] text-white placeholder-gray-500">
+                                </div>
+                                <button onclick="tambahCartPelanggan('${id}', '${item.nama}', ${item.harga})" class="w-full bg-yellow-500/10 hover:bg-yellow-500 text-yellow-500 hover:text-black py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1">
+                                    <i class="fas fa-plus"></i> Tambah ke Pesanan
                                 </button>
                             </div>
                         </div>
@@ -189,10 +195,26 @@
         }
 
         window.tambahCartPelanggan = function(id, nama, harga) {
-            if (cartPelanggan[id]) {
-                cartPelanggan[id].qty += 1;
+            const suhu = document.getElementById(`suhu-${id}`).value;
+            const catatan = document.getElementById(`catatan-${id}`).value.trim();
+            // Buat kunci unik berdasarkan ID dan variasi suhu/catatan
+            const cartKey = `${id}-${suhu}-${catatan}`;
+
+            if (cartPelanggan[cartKey]) {
+                cartPelanggan[cartKey].qty += 1;
             } else {
-                cartPelanggan[id] = { nama, harga, qty: 1 };
+                cartPelanggan[cartKey] = { id, nama, harga, suhu, catatan, qty: 1 };
+            }
+            updateCartPelangganUI();
+        };
+
+        // Fungsi Tambah/Kurang/Hapus Item di Keranjang
+        window.ubahQtyCart = function(cartKey, delta) {
+            if (cartPelanggan[cartKey]) {
+                cartPelanggan[cartKey].qty += delta;
+                if (cartPelanggan[cartKey].qty <= 0) {
+                    delete cartPelanggan[cartKey];
+                }
             }
             updateCartPelangganUI();
         };
@@ -210,17 +232,23 @@
             }
 
             let total = 0;
-            keys.forEach(id => {
-                let item = cartPelanggan[id];
+            keys.forEach(cartKey => {
+                let item = cartPelanggan[cartKey];
                 let subtotal = item.harga * item.qty;
                 total += subtotal;
+                let detailInfo = `(${item.suhu}${item.catatan ? ', ' + item.catatan : ''})`;
+                
                 container.innerHTML += `
-                    <div class="flex justify-between items-center bg-gray-900 p-2 rounded-lg text-xs">
-                        <div>
-                            <p class="font-medium text-white">${item.nama}</p>
+                    <div class="flex justify-between items-center bg-gray-900 p-2 rounded-lg text-xs gap-2">
+                        <div class="flex-1">
+                            <p class="font-medium text-white">${item.nama} <span class="text-yellow-500 text-[10px]">${detailInfo}</span></p>
                             <p class="text-[10px] text-gray-400">Rp ${item.harga.toLocaleString('id-ID')} x ${item.qty}</p>
                         </div>
-                        <span class="font-bold text-yellow-400">Rp ${subtotal.toLocaleString('id-ID')}</span>
+                        <div class="flex items-center gap-1">
+                            <button onclick="ubahQtyCart('${cartKey}', -1)" class="px-1.5 py-0.5 bg-red-900/40 text-red-400 rounded hover:bg-red-900"><i class="fas fa-minus"></i></button>
+                            <span class="font-bold text-white px-1">${item.qty}</span>
+                            <button onclick="ubahQtyCart('${cartKey}', 1)" class="px-1.5 py-0.5 bg-green-900/40 text-green-400 rounded hover:bg-green-900"><i class="fas fa-plus"></i></button>
+                        </div>
                     </div>
                 `;
             });
@@ -292,7 +320,8 @@
                     pesanWA += `Pelanggan: *${nama}*\n`;
                     pesanWA += `Pembayaran: *${metodeBayar}*\n\n*Rincian:*\n`;
                     Object.values(cartPelanggan).forEach(i => {
-                        pesanWA += `- ${i.nama} (${i.qty}x) : Rp ${(i.harga * i.qty).toLocaleString('id-ID')}\n`;
+                        let catatanTxt = i.catatan ? `, Catatan: ${i.catatan}` : '';
+                        pesanWA += `- ${i.nama} [${i.suhu}${catatanTxt}] (${i.qty}x) : Rp ${(i.harga * i.qty).toLocaleString('id-ID')}\n`;
                     });
                     pesanWA += `\n*TOTAL: Rp ${total.toLocaleString('id-ID')}*`;
 
@@ -311,7 +340,9 @@
             }
         };
 
+        // Tambah / Edit Menu Produk oleh Kasir
         window.tambahMenuAdmin = async function() {
+            const editId = document.getElementById('adm-edit-id').value;
             const nama = document.getElementById('adm-nama').value.trim();
             const harga = parseInt(document.getElementById('adm-harga').value);
             const kategori = document.getElementById('adm-kategori').value;
@@ -322,31 +353,58 @@
                 return;
             }
 
-            let fotoUrl = 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=500&q=80';
+            let simpanKeFirebase = async (fotoUrl) => {
+                try {
+                    if (editId) {
+                        // Proses Update Menu yang Sudah Ada
+                        let updateData = { nama, harga, kategori };
+                        if (fotoUrl) updateData.foto = fotoUrl;
+                        await updateDoc(doc(db, "menu_melky", editId), updateData);
+                        alert('Menu berhasil diperbarui!');
+                        batalEditMenu();
+                    } else {
+                        // Proses Tambah Menu Baru
+                        let fotoFinal = fotoUrl || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=500&q=80';
+                        await addDoc(collection(db, "menu_melky"), { nama, harga, kategori, foto: fotoFinal });
+                        alert('Menu baru berhasil ditambahkan!');
+                        document.getElementById('adm-nama').value = '';
+                        document.getElementById('adm-harga').value = '';
+                        document.getElementById('adm-foto-file').value = '';
+                    }
+                    muatMenuAdmin();
+                } catch (err) {
+                    alert('Gagal menyimpan menu.');
+                }
+            };
+
             if (fileInput.files && fileInput.files[0]) {
                 const reader = new FileReader();
                 reader.onload = async function(e) {
-                    fotoUrl = e.target.result;
-                    await simpanMenuKeDb(nama, harga, kategori, fotoUrl);
+                    await simpanKeFirebase(e.target.result);
                 };
                 reader.readAsDataURL(fileInput.files[0]);
             } else {
-                await simpanMenuKeDb(nama, harga, kategori, fotoUrl);
+                await simpanKeFirebase(null);
             }
         };
 
-        async function simpanMenuKeDb(nama, harga, kategori, foto) {
-            try {
-                await addDoc(collection(db, "menu_melky"), { nama, harga, kategori, foto });
-                alert('Menu berhasil ditambahkan!');
-                document.getElementById('adm-nama').value = '';
-                document.getElementById('adm-harga').value = '';
-                document.getElementById('adm-foto-file').value = '';
-                muatMenuAdmin();
-            } catch (err) {
-                alert('Gagal menambah menu.');
-            }
-        }
+        window.editMenuForm = function(id, nama, harga, kategori) {
+            document.getElementById('adm-edit-id').value = id;
+            document.getElementById('adm-nama').value = nama;
+            document.getElementById('adm-harga').value = harga;
+            document.getElementById('adm-kategori').value = kategori;
+            document.getElementById('btn-simpan-menu').innerText = "Update / Simpan Perubahan Menu";
+            document.getElementById('btn-batal-edit').classList.remove('hidden');
+        };
+
+        window.batalEditMenu = function() {
+            document.getElementById('adm-edit-id').value = '';
+            document.getElementById('adm-nama').value = '';
+            document.getElementById('adm-harga').value = '';
+            document.getElementById('adm-foto-file').value = '';
+            document.getElementById('btn-simpan-menu').innerText = "Simpan Menu Baru";
+            document.getElementById('btn-batal-edit').classList.add('hidden');
+        };
 
         function muatMenuAdmin() {
             onSnapshot(collection(db, "menu_melky"), (snapshot) => {
@@ -354,13 +412,17 @@
                 tbody.innerHTML = '';
                 snapshot.forEach((docSnap) => {
                     let m = docSnap.data();
+                    let id = docSnap.id;
                     tbody.innerHTML += `
                         <tr class="border-b border-gray-700/50">
                             <td class="p-2"><img src="${m.foto}" class="w-10 h-10 object-cover rounded"></td>
-                            <td class="p-2 text-white">${m.nama}</td>
+                            <td class="p-2 text-white font-medium">${m.nama}</td>
                             <td class="p-2 text-yellow-400">Rp ${m.harga.toLocaleString('id-ID')}</td>
                             <td class="p-2 text-gray-300">${m.kategori}</td>
-                            <td class="p-2 text-center"><button onclick="hapusMenu('${docSnap.id}')" class="text-red-400 hover:text-red-300 px-2 py-1 bg-red-900/20 rounded">Hapus</button></td>
+                            <td class="p-2 text-center space-x-1">
+                                <button onclick="editMenuForm('${id}', '${m.nama}', ${m.harga}, '${m.kategori}')" class="text-blue-400 hover:text-blue-300 text-[10px] px-2 py-1 bg-blue-900/20 rounded">Edit</button>
+                                <button onclick="hapusMenu('${id}')" class="text-red-400 hover:text-red-300 text-[10px] px-2 py-1 bg-red-900/20 rounded">Hapus</button>
+                            </td>
                         </tr>
                     `;
                 });
@@ -470,13 +532,16 @@
                 snapshot.forEach((docSnapshot) => {
                     let p = docSnapshot.data();
                     let docId = docSnapshot.id;
-                    let list = Object.values(p.items).map(i => `${i.nama} (${i.qty}x)`).join(', ');
+                    let list = Object.values(p.items).map(i => {
+                        let cat = i.catatan ? `(${i.catatan})` : '';
+                        return `${i.nama} [${i.suhu} ${cat}] (${i.qty}x)`;
+                    }).join(', ');
                     
                     tbody.innerHTML += `
                         <tr class="border-b border-gray-700/50 hover:bg-gray-700/20">
                             <td class="p-2 text-gray-400">${p.waktu}</td>
                             <td class="p-2 font-medium text-white">${p.nama}</td>
-                            <td class="p-2 text-gray-300 max-w-xs truncate">${list}</td>
+                            <td class="p-2 text-gray-300 max-w-xs">${list}</td>
                             <td class="p-2 text-blue-300">${p.metodeBayar || 'Cash'}</td>
                             <td class="p-2 text-yellow-400 font-semibold">Rp ${p.total.toLocaleString('id-ID')}</td>
                             <td class="p-2 text-center">
@@ -506,7 +571,6 @@
     <!-- NAVBAR DENGAN FITUR TRIPLE TAP RAHASIA DI LOGO -->
     <header class="bg-black border-b border-yellow-600/30 p-4 shadow-lg sticky top-0 z-50">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-            <!-- KLIK AREA INI 3 KALI CEPAT DI HP UNTUK MASUK KASIR -->
             <div onclick="bukaKasirViaTap()" class="flex items-center gap-3 cursor-pointer select-none">
                 <div class="w-10 h-10 rounded-full border-2 border-yellow-500 flex items-center justify-center bg-yellow-500/10 text-yellow-500 font-bold">☕</div>
                 <div>
@@ -534,7 +598,7 @@
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
                     <div>
                         <h2 class="text-lg font-semibold text-yellow-400"><i class="fas fa-book-open mr-2"></i>Katalog Menu</h2>
-                        <p class="text-xs text-gray-400">Pilih kategori dan klik menu untuk memesan</p>
+                        <p class="text-xs text-gray-400">Pilih opsi Es/Panas, ketik catatan, lalu tambah ke pesanan</p>
                     </div>
                     <div class="flex gap-1 overflow-x-auto pb-1 w-full sm:w-auto">
                         <button onclick="filterKategori('Semua')" data-kat="Semua" class="btn-kategori px-3 py-1 bg-yellow-600 text-black font-semibold rounded-lg text-xs">Semua</button>
@@ -547,7 +611,7 @@
             </div>
         </div>
 
-        <!-- Keranjang Pesanan Pelanggan -->
+        <!-- Keranjang Pesanan Pelanggan (Bisa Edit Qty / Batalkan Item) -->
         <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 flex flex-col justify-between h-fit sticky top-20">
             <div>
                 <h2 class="text-lg font-semibold text-yellow-400 mb-3"><i class="fas fa-receipt mr-2"></i>Pesanan Anda</h2>
@@ -565,7 +629,7 @@
                     <div id="info-pembayaran-detail" class="hidden"></div>
                 </div>
                 <div class="border-t border-gray-700 pt-3 mb-3">
-                    <div id="pelanggan-cart" class="space-y-2 max-h-40 overflow-y-auto pr-1">
+                    <div id="pelanggan-cart" class="space-y-2 max-h-48 overflow-y-auto pr-1">
                         <p class="text-xs text-gray-500 text-center py-4">Belum ada menu dipilih</p>
                     </div>
                 </div>
@@ -582,20 +646,21 @@
         </div>
     </div>
 
-    <!-- VIEW KASIR (TERSEMBUNYI DARI PELANGGAN) -->
+    <!-- VIEW KASIR (TERSEMBUNYI) -->
     <div id="view-kasir" class="max-w-7xl mx-auto p-4 md:p-6 hidden">
         <div class="flex justify-between items-center bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6">
             <div>
                 <h2 class="text-lg font-bold text-yellow-400">Panel Admin Kasir Rahasia</h2>
-                <p class="text-xs text-gray-400">Kelola menu, setup nomor rekening, upload QRIS, dan pantau pesanan masuk.</p>
+                <p class="text-xs text-gray-400">Kelola menu (Tambah/Edit), atur pembayaran, dan pantau pesanan.</p>
             </div>
             <button onclick="logoutKasir()" class="bg-red-600/20 text-red-400 border border-red-600/50 hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-lg text-xs transition">Keluar Kasir</button>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <!-- Tambah Menu & Foto -->
+            <!-- Form Tambah & Edit Menu Real-time -->
             <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3">
-                <h3 class="text-md font-semibold text-yellow-400"><i class="fas fa-camera mr-2"></i>Tambah Menu & Foto</h3>
+                <h3 class="text-md font-semibold text-yellow-400"><i class="fas fa-edit mr-2"></i>Kelola Menu (Tambah / Edit)</h3>
+                <input type="hidden" id="adm-edit-id">
                 <div>
                     <label class="block text-xs text-gray-300 mb-1">Nama Menu</label>
                     <input type="text" id="adm-nama" placeholder="Cth: Es Kopi Susu" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm text-white">
@@ -615,13 +680,15 @@
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-300 mb-1">Foto Produk (Bisa Pilih Galeri atau Kamera)</label>
-                    <!-- Perbaikan di sini: Hapus atribut capture agar HP memunculkan pilihan galeri/kamera -->
+                    <label class="block text-xs text-gray-300 mb-1">Ganti / Foto Produk</label>
                     <input type="file" id="adm-foto-file" accept="image/*" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-1.5 text-xs text-gray-300 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-yellow-600 file:text-black hover:file:bg-yellow-500">
                 </div>
-                <button onclick="tambahMenuAdmin()" class="w-full bg-yellow-600 hover:bg-yellow-500 text-black font-semibold py-2 rounded-lg text-sm transition">Simpan Menu Baru</button>
+                <div class="flex gap-2">
+                    <button id="btn-simpan-menu" onclick="tambahMenuAdmin()" class="flex-1 bg-yellow-600 hover:bg-yellow-500 text-black font-semibold py-2 rounded-lg text-sm transition">Simpan Menu Baru</button>
+                    <button id="btn-batal-edit" onclick="batalEditMenu()" class="hidden px-3 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs transition">Batal</button>
+                </div>
                 
-                <div class="overflow-x-auto max-h-40 mt-4">
+                <div class="overflow-x-auto max-h-48 mt-4">
                     <table class="w-full text-left text-xs">
                         <tbody id="adm-menu-list"></tbody>
                     </table>
@@ -644,7 +711,7 @@
                     <input type="text" id="set-no-rek" placeholder="BCA: 8830192837 a.n Melky" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm text-white">
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-300 mb-1">Upload Gambar QRIS (Ambil dari Penyimpanan / Galeri)</label>
+                    <label class="block text-xs text-gray-300 mb-1">Upload Gambar QRIS</label>
                     <input type="file" id="set-qris-file" accept="image/*" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-1.5 text-xs text-gray-300 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-yellow-600 file:text-black hover:file:bg-yellow-500">
                     <div class="mt-2">
                         <img id="preview-qris-adm" class="w-20 h-20 object-contain rounded border border-gray-700 hidden bg-white p-1">
@@ -671,7 +738,7 @@
                         <tr class="bg-gray-900 text-gray-400 border-b border-gray-700">
                             <th class="p-2.5">Waktu</th>
                             <th class="p-2.5">Pelanggan / Meja</th>
-                            <th class="p-2.5">Pesanan</th>
+                            <th class="p-2.5">Pesanan & Catatan</th>
                             <th class="p-2.5">Bayar Via</th>
                             <th class="p-2.5">Total</th>
                             <th class="p-2.5 text-center">Aksi</th>
