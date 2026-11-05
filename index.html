@@ -115,13 +115,27 @@
             }
         };
 
-        // Shortcut keyboard rahasia untuk masuk kasir (Ctrl + Shift + K)
+        // Shortcut keyboard rahasia untuk PC (Ctrl + Shift + K)
         window.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'k') {
                 e.preventDefault();
                 switchView('kasir');
             }
         });
+
+        // Shortcut khusus HP: Ketuk 3 kali pada logo/area judul
+        let tapCount = 0;
+        let tapTimer = null;
+        window.bukaKasirViaTap = function() {
+            tapCount++;
+            if (tapCount === 1) {
+                tapTimer = setTimeout(() => { tapCount = 0; }, 600);
+            } else if (tapCount === 3) {
+                clearTimeout(tapTimer);
+                tapCount = 0;
+                switchView('kasir');
+            }
+        };
 
         window.logoutKasir = function() {
             isKasirLoggedIn = false;
@@ -213,7 +227,6 @@
             totalEl.innerText = `Rp ${total.toLocaleString('id-ID')}`;
         }
 
-        // Update Info Pembayaran di Sisi Pelanggan Secara Real-time
         window.cekInfoPembayaran = function() {
             const metode = document.getElementById('pilih-metode-bayar').value;
             const infoBox = document.getElementById('info-pembayaran-detail');
@@ -298,7 +311,6 @@
             }
         };
 
-        // Tambah Menu Produk
         window.tambahMenuAdmin = async function() {
             const nama = document.getElementById('adm-nama').value.trim();
             const harga = parseInt(document.getElementById('adm-harga').value);
@@ -361,7 +373,6 @@
             }
         };
 
-        // Simpan Pengaturan Kasir (No Rekening, Upload QRIS, WA, Running Text)
         window.simpanPengaturan = async function() {
             const waKasir = document.getElementById('set-wa').value.trim();
             const runningText = document.getElementById('set-running-text').value.trim();
@@ -492,10 +503,11 @@
 </head>
 <body class="bg-gray-900 text-gray-100 font-sans">
 
-    <!-- NAVBAR DENGAN JAM REALTIME -->
+    <!-- NAVBAR DENGAN FITUR TRIPLE TAP RAHASIA DI LOGO -->
     <header class="bg-black border-b border-yellow-600/30 p-4 shadow-lg sticky top-0 z-50">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
+            <!-- KLIK AREA INI 3 KALI CEPAT DI HP UNTUK MASUK KASIR -->
+            <div onclick="bukaKasirViaTap()" class="flex items-center gap-3 cursor-pointer select-none">
                 <div class="w-10 h-10 rounded-full border-2 border-yellow-500 flex items-center justify-center bg-yellow-500/10 text-yellow-500 font-bold">☕</div>
                 <div>
                     <h1 class="text-xl font-bold tracking-wider text-yellow-500">KAFE MELKY</h1>
@@ -506,10 +518,6 @@
             <!-- WIDGET WAKTU REALTIME -->
             <div class="bg-gray-900/80 border border-yellow-600/40 px-3 py-1.5 rounded-lg text-center shadow-inner">
                 <span id="realtime-clock" class="text-xs sm:text-sm font-semibold text-yellow-400 tracking-wide">Memuat Waktu...</span>
-            </div>
-
-            <div class="flex gap-2 text-sm">
-                <button onclick="switchView('pelanggan')" class="px-3 py-1.5 bg-yellow-600 text-black font-semibold rounded-lg transition">Menu Pelanggan</button>
             </div>
         </div>
     </header>
@@ -554,7 +562,6 @@
                             <option value="Cash">Cash / Bayar di Kasir</option>
                         </select>
                     </div>
-                    <!-- Kotak Informasi QRIS / No Rekening Otomatis Muncul di Sini -->
                     <div id="info-pembayaran-detail" class="hidden"></div>
                 </div>
                 <div class="border-t border-gray-700 pt-3 mb-3">
