@@ -121,8 +121,19 @@
      <h2 id="detail-heading" class="serif text-3xl mb-3"></h2>
      <p id="detail-category" class="muted mb-2"></p>
      <p id="detail-description" class="mb-5"></p>
-     <p id="detail-price" class="font-bold mb-5 text-lg"></p>
-     <button id="detail-order" class="action w-full" type="button">Pesan Sekarang</button>
+     <p id="detail-price" class="font-bold mb-3 text-lg"></p>
+     
+     <!-- Kontrol Jumlah (Qty) saat pesan -->
+     <div class="flex items-center gap-3 mb-5">
+      <label class="font-bold">Jumlah:</label>
+      <div class="flex items-center border rounded-xl overflow-hidden bg-white">
+       <button type="button" id="qty-minus" class="px-3 py-1 bg-stone-100 font-bold">-</button>
+       <span id="qty-value" class="px-4 font-bold">1</span>
+       <button type="button" id="qty-plus" class="px-3 py-1 bg-stone-100 font-bold">+</button>
+      </div>
+     </div>
+
+     <button id="detail-order" class="action w-full" type="button">Tambah ke Keranjang</button>
     </section>
 
     <!-- Keranjang -->
@@ -138,6 +149,7 @@
 
     <!-- Checkout -->
     <section id="checkout-page" class="page" hidden>
+     <button id="checkout-back" class="soft mb-4" type="button">← Kembali ke Keranjang</button>
      <h2 class="serif mb-4 text-2xl">Konfirmasi Pesanan</h2>
      <form id="checkout-form" class="space-y-4">
       <div>
@@ -271,7 +283,7 @@
     // 1. KONFIGURASI SUPABASE ANDA
     // ==========================================
     const SUPABASE_URL = 'https://yyteszpzfdlxkwuiftvz.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5dGVzenB6ZmRseGt3dWlmdHZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4OTI4MDUsImV4cCI6MjEwOTQ2ODgwNX0.kf5k6qvctPk382gNTqA21v1FEEk9qL5uMbQOeoiMzDA';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5dGVzenB6ZmRseGt3dWlmdHZ6In0.kf5k6qvctPk382gNTqA21v1FEEk9qL5uMbQOeoiMzDA';
 
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const BUCKET_NAME = 'arumi-assets';
@@ -286,6 +298,7 @@
     let currentPage = 'auth';
     let selectedCategory = 'Semua';
     let detailItem = null;
+    let currentQty = 1; // Variabel jumlah produk saat dipilih
     const cart = new Map();
 
     // Logika PWA Install Prompt
@@ -336,7 +349,6 @@
       } catch(e) {}
     }
 
-    // Konversi Gambar ke Base64 (Aman, Tanpa Error Storage Supabase)
     async function uploadToBucket(file) {
       if (!file) return '';
       return new Promise((resolve, reject) => {
@@ -347,7 +359,6 @@
       });
     }
 
-    // Ambil Data dari Supabase Database (Diperbaiki: Kurung kurawal sudah lengkap)
     async function fetchAppData() {
       const [prodRes, payRes, ordRes] = await Promise.all([
         supabaseClient.from('products').select('*').order('created_at', { ascending: false }),
@@ -415,10 +426,12 @@
       }
     }
 
-    function addItem(item) {
+    // Fungsi Tambah ke Keranjang dengan Kuantitas Spesifik
+    function addItemWithQty(item, qty = 1) {
       const old = cart.get(item.id);
-      cart.set(item.id, {...item, qty: (old?.qty || 0) + 1});
-      message(item.name + ' ditambahkan ke keranjang.');
+      const currentCount = old ? old.qty : 0;
+      cart.set(item.id, {...item, qty: currentCount + qty});
+      message(`${qty}× ${item.name} ditambahkan ke keranjang.`);
     }
 
     function productCard(item) {
@@ -453,8 +466,8 @@
       const orderBtn = document.createElement('button');
       orderBtn.type = 'button';
       orderBtn.className = 'action text-sm flex-1';
-      orderBtn.textContent = 'Pesan';
-      orderBtn.onclick = () => addItem(item);
+      orderBtn.textContent = '+ Pesan';
+      orderBtn.onclick = () => addItemWithQty(item, 1);
 
       const detailBtn = document.createElement('button');
       detailBtn.type = 'button';
@@ -462,6 +475,8 @@
       detailBtn.textContent = 'Detail';
       detailBtn.onclick = () => {
         detailItem = item;
+        currentQty = 1; // Reset jumlah ke 1 setiap buka detail
+        $('qty-value').textContent = currentQty;
         $('detail-image').src = item.image_url || '';
         $('detail-image').hidden = !item.image_url;
         $('detail-heading').textContent = item.name;
@@ -509,17 +524,51 @@
 
       for (const item of cart.values()) {
         const card = document.createElement('article');
-        card.className = 'card flex justify-between gap-3 items-start';
-        const info = document.createElement('div');
-        info.innerHTML = `<h3 class="font-bold">${item.name}</h3><p class="muted text-sm">${item.qty} × ${money(item.price)}</p>`;
+        card.className = 'card flex justify-between gap-3 items-center';
         
+        const info = document.createElement('div');
+        info.innerHTML = `<h3 class="font-bold">${item.name}</h3><p class="muted text-sm">${money(item.price)} × ${item.qty} = <span class="font-bold text-[#ba812f]">${money(item.price * item.qty)}</span></p>`;
+        
+        // Kontrol tambah/kurang qty langsung di keranjang
+        const controls = document.createElement('div');
+        controls.className = 'flex items-center gap-2';
+
+        const minusBtn = document.createElement('button');
+        minusBtn.type = 'button';
+        minusBtn.className = 'soft px-2.5 py-1 text-sm font-bold';
+        minusBtn.textContent = '-';
+        minusBtn.onclick = () => {
+          if (item.qty > 1) {
+            item.qty -= 1;
+            cart.set(item.id, item);
+          } else {
+            cart.delete(item.id);
+          }
+          renderCart();
+        };
+
+        const qtySpan = document.createElement('span');
+        qtySpan.className = 'font-bold text-sm px-1';
+        qtySpan.textContent = item.qty;
+
+        const plusBtn = document.createElement('button');
+        plusBtn.type = 'button';
+        plusBtn.className = 'soft px-2.5 py-1 text-sm font-bold';
+        plusBtn.textContent = '+';
+        plusBtn.onclick = () => {
+          item.qty += 1;
+          cart.set(item.id, item);
+          renderCart();
+        };
+
         const rem = document.createElement('button');
         rem.type = 'button';
-        rem.className = 'soft text-sm';
+        rem.className = 'text-red-600 text-xs font-bold px-2 py-1 ml-1';
         rem.textContent = 'Hapus';
         rem.onclick = () => { cart.delete(item.id); renderCart(); };
 
-        card.append(info, rem);
+        controls.append(minusBtn, qtySpan, plusBtn, rem);
+        card.append(info, controls);
         list.append(card);
       }
     }
@@ -528,7 +577,7 @@
       if (!cart.size) { showPage('cart'); return; }
       $('buyer').value = currentCustomer.name;
       $('buyer-phone').value = currentCustomer.phone;
-      $('checkout-total').textContent = 'Total: ' + money(totalCart());
+      $('checkout-total').textContent = 'Total Tagihan: ' + money(totalCart());
 
       const options = $('payment-options');
       options.replaceChildren();
@@ -661,7 +710,35 @@
     $('home-search').oninput = renderMenu;
     $('menu-search').oninput = renderMenu;
     $('detail-back').onclick = () => showPage('menu');
-    $('detail-order').onclick = () => { if (detailItem) addItem(detailItem); };
+    
+    // Tombol Kuantitas (Plus & Minus) di Halaman Detail Produk
+    $('qty-minus').onclick = () => {
+      if (currentQty > 1) {
+        currentQty--;
+        $('qty-value').textContent = currentQty;
+      }
+    };
+    $('qty-plus').onclick = () => {
+      currentQty++;
+      $('qty-value').textContent = currentQty;
+    };
+
+    // Tombol Pesan dari Detail Produk
+    $('detail-order').onclick = () => { 
+      if (detailItem) {
+        addItemWithQty(detailItem, currentQty);
+        showPage('cart');
+      }
+    };
+
+    // Fungsionalitas Tombol Lanjut ke Checkout
+    $('checkout-button').onclick = () => {
+      showPage('checkout');
+    };
+
+    $('checkout-back').onclick = () => {
+      showPage('cart');
+    };
 
     document.querySelectorAll('[data-page]').forEach(b => b.onclick = () => showPage(b.dataset.page));
 
