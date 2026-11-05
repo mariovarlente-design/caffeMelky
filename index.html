@@ -592,7 +592,7 @@
       }
     }
 
-    function renderCheckout() {
+        function renderCheckout() {
       if (!cart.size) { showPage('cart'); return; }
       $('buyer').value = currentCustomer.name;
       $('buyer-phone').value = currentCustomer.phone;
@@ -602,7 +602,14 @@
       options.replaceChildren();
       $('payment-detail-card').hidden = true;
 
-      const activePay = dbPayments.filter(p => p.is_active !== false);
+      // 1. Tambahkan metode pembayaran Cash (Tunai) secara manual
+      const cashMethods = [
+        { name: 'Cash (Tunai di Kasir)', account_info: 'Silakan lakukan pembayaran secara tunai langsung di kasir saat mengambil pesanan.', qr_url: '' }
+      ];
+
+      // Gabungkan metode Cash dengan metode dari database (TF BCA, QRIS, dll)
+      const activePay = [...cashMethods, ...dbPayments.filter(p => p.is_active !== false)];
+      
       for (const p of activePay) {
         const label = document.createElement('label');
         label.className = 'card flex gap-2 items-center cursor-pointer';
@@ -614,7 +621,7 @@
         
         radio.onchange = () => {
           $('payment-detail-card').hidden = false;
-          $('payment-account-text').textContent = p.account_info || 'Silakan transfer sesuai total tagihan.';
+          $('payment-account-text').textContent = p.account_info || 'Silakan lakukan pembayaran sesuai instruksi.';
           if (p.qr_url) {
             $('payment-qr-img').src = p.qr_url;
             $('qr-wrapper').hidden = false;
@@ -627,6 +634,7 @@
         options.append(label);
       }
     }
+
 
     function renderOrders() {
       const list = $('orders-list');
