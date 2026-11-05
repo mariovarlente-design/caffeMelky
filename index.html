@@ -188,17 +188,32 @@
     <button id="manage-back" class="soft mb-5" type="button">← Kembali</button>
     <h2 class="serif mb-2 text-2xl">Dashboard Kasir &amp; Kelola Toko</h2>
     
-    <!-- Tab Navigasi Kasir -->
-    <div class="flex gap-2 mb-4">
-     <button id="tab-btn-orders" class="action flex-1 text-sm">Pesanan Masuk</button>
-     <button id="tab-btn-catalog" class="soft flex-1 text-sm">Kelola Produk</button>
-     <button id="tab-btn-pay" class="soft flex-1 text-sm">Metode Bayar</button>
+    <!-- Tab Navigasi Kasir (Termasuk Laporan Penjualan) -->
+    <div class="grid grid-cols-4 gap-1 mb-4">
+     <button id="tab-btn-orders" class="action text-xs py-2 px-1 rounded-lg">Pesanan</button>
+     <button id="tab-btn-reports" class="soft text-xs py-2 px-1 rounded-lg">Laporan</button>
+     <button id="tab-btn-catalog" class="soft text-xs py-2 px-1 rounded-lg">Produk</button>
+     <button id="tab-btn-pay" class="soft text-xs py-2 px-1 rounded-lg">Bayar</button>
     </div>
 
-    <!-- Panel 1: Live Pesanan Masuk (Realtime + Audio Alarm + Cetak Struk) -->
+    <!-- Panel 1: Live Pesanan Masuk (Realtime + Audio Alarm + Tombol WA & Cetak Struk) -->
     <div id="cashier-orders-panel" class="space-y-3">
-     <h3 class="serif text-xl">Daftar Pesanan Masuk (Realtime)</h3>
+     <h3 class="serif text-xl">Daftar Pesanan Masuk</h3>
      <div id="cashier-orders-list" class="space-y-3"></div>
+    </div>
+
+    <!-- Panel 1B: Laporan Penjualan / Omzet Harian -->
+    <div id="cashier-reports-panel" class="space-y-3" hidden>
+     <h3 class="serif text-xl">Laporan Penjualan</h3>
+     <div class="card bg-amber-50 border-amber-200">
+      <p class="text-xs muted uppercase tracking-wide font-bold">Total Omzet Hari Ini</p>
+      <p id="report-today-revenue" class="serif text-3xl font-bold text-[#ba812f] mt-1">Rp0</p>
+      <p id="report-today-count" class="text-sm muted mt-2">0 pesanan berhasil dicatat hari ini.</p>
+     </div>
+     <div class="card space-y-2">
+      <h4 class="font-bold text-sm">Ringkasan Semua Transaksi</h4>
+      <p id="report-total-all" class="text-sm"></p>
+     </div>
     </div>
 
     <!-- Panel 2: Tambah Produk & Upload Otomatis ke Supabase Bucket -->
@@ -246,7 +261,7 @@
     // ==========================================
     // 1. KONFIGURASI SUPABASE ANDA
     // ==========================================
-    const SUPABASE_URL = 'https://yyteszpzfdlxkwuiftvz.supabase.co/rest/v1/';
+    const SUPABASE_URL = 'https://yyteszpzfdlxkwuiftvz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5dGVzenB6ZmRseGt3dWlmdHZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4OTI4MDUsImV4cCI6MjEwOTQ2ODgwNX0.kf5k6qvctPk382gNTqA21v1FEEk9qL5uMbQOeoiMzDA';
     
     // Inisialisasi Supabase Client
@@ -322,6 +337,7 @@
       renderMenu();
       renderOrders();
       renderCashierOrders();
+      renderReports();
     }
 
     // Setup Realtime Subscription untuk Kasir
@@ -332,6 +348,7 @@
           dbOrders.unshift(payload.new);
           playBeep();
           renderCashierOrders();
+          renderReports();
           if (currentCustomer) renderOrders();
           message('Ada pesanan baru masuk! 🔔');
         })
@@ -361,7 +378,6 @@
       window.scrollTo(0, 0);
     }
 
-    // Render Kategori
     function renderCategories(id) {
       const node = $(id);
       node.replaceChildren();
@@ -538,7 +554,7 @@
       $('orders-empty').hidden = myOrders.length > 0;
     }
 
-    // Dashboard Kasir: Kelola Pesanan Masuk + Ubah Status + Cetak Struk
+    // Dashboard Kasir: Kelola Pesanan Masuk + Tombol WhatsApp ke Pelanggan + Cetak Struk
     function renderCashierOrders() {
       const list = $('cashier-orders-list');
       list.replaceChildren();
@@ -549,20 +565,26 @@
       }
 
       for (const o of dbOrders) {
+        let cleanPhone = String(o.customer_phone).replace(/\D/g,'');
+        if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
+        const waText = encodeURIComponent(`Halo Kak ${o.customer_name}, pesanan #${o.code} di Arumi Kafe saat ini statusnya: *${o.status}*. Terima kasih!`);
+        const waUrl = `https://wa.me/${cleanPhone}?text=${waText}`;
+
         const card = document.createElement('article');
         card.className = 'card space-y-2 border-l-4 border-[#ba812f]';
         card.innerHTML = `
           <div class="flex justify-between items-start">
             <div>
-              <h3 class="font-bold">#${o.code} - ${o.customer_name} (${o.customer_phone})</h3>
-              <p class="text-xs muted">Ambil: ${o.pickup_time} | Bayar: ${o.payment_method}</p>
+              <h3 class="font-bold">#${o.code} - ${o.customer_name}</h3>
+              <p class="text-xs muted">No WA: ${o.customer_phone} | Ambil: ${o.pickup_time}</p>
             </div>
             <span class="text-xs font-bold px-2 py-1 bg-amber-100 text-amber-800 rounded-full">${o.status}</span>
           </div>
           <p class="text-sm whitespace-pre-line bg-stone-50 p-2 rounded">${JSON.parse(JSON.stringify(o.items)).join('\n')}</p>
-          <div class="flex flex-wrap gap-2 pt-2">
+          <div class="flex flex-wrap gap-2 pt-2 items-center">
             <button class="soft text-xs btn-status" data-id="${o.id}" data-status="Diproses">Proses</button>
             <button class="soft text-xs btn-status" data-id="${o.id}" data-status="Selesai / Siap Diambil">Selesai</button>
+            <a href="${waUrl}" target="_blank" class="bg-emerald-600 text-white text-xs px-3 py-2 rounded-lg font-bold no-underline">Chat WA Pelanggan</a>
             <button class="action text-xs btn-print" data-code="${o.code}">Cetak Struk</button>
           </div>
         `;
@@ -582,7 +604,7 @@
         };
       });
 
-      // Tombol Cetak Struk / Nota Thermal
+      // Tombol Cetak Struk
       list.querySelectorAll('.btn-print').forEach(btn => {
         btn.onclick = () => {
           const code = btn.dataset.code;
@@ -598,6 +620,19 @@
       });
     }
 
+    // Render Laporan Penjualan Harian
+    function renderReports() {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayOrders = dbOrders.filter(o => String(o.created_at).slice(0, 10) === todayStr);
+      const todayRevenue = todayOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+
+      $('report-today-revenue').textContent = money(todayRevenue);
+      $('report-today-count').textContent = `${todayOrders.length} pesanan berhasil dicatat pada hari ini.`;
+
+      const allRevenue = dbOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+      $('report-total-all').textContent = `Total Keseluruhan Omzet: ${money(allRevenue)} dari ${dbOrders.length} total transaksi tersimpan.`;
+    }
+
     // --- EVENT HANDLERS ---
     $('show-login').onclick = () => { $('login-form').hidden = false; $('register-form').hidden = true; };
     $('show-register').onclick = () => { $('login-form').hidden = true; $('register-form').hidden = false; };
@@ -610,22 +645,23 @@
 
     document.querySelectorAll('[data-page]').forEach(b => b.onclick = () => showPage(b.dataset.page));
 
-    // Navigasi Tab Kasir
-    $('tab-btn-orders').onclick = () => {
-      $('cashier-orders-panel').hidden = false;
-      $('menu-form').hidden = true;
-      $('payment-form').hidden = true;
-    };
-    $('tab-btn-catalog').onclick = () => {
-      $('cashier-orders-panel').hidden = true;
-      $('menu-form').hidden = false;
-      $('payment-form').hidden = true;
-    };
-    $('tab-btn-pay').onclick = () => {
-      $('cashier-orders-panel').hidden = true;
-      $('menu-form').hidden = true;
-      $('payment-form').hidden = false;
-    };
+    // Navigasi Tab Kasir (Pesanan, Laporan, Produk, Bayar)
+    function switchTab(activeBtnId, activePanelId) {
+      ['tab-btn-orders', 'tab-btn-reports', 'tab-btn-catalog', 'tab-btn-pay'].forEach(id => {
+        $(id).className = 'soft text-xs py-2 px-1 rounded-lg';
+      });
+      $(activeBtnId).className = 'action text-xs py-2 px-1 rounded-lg';
+
+      ['cashier-orders-panel', 'cashier-reports-panel', 'menu-form', 'payment-form'].forEach(id => {
+        $(id).hidden = true;
+      });
+      $(activePanelId).hidden = false;
+    }
+
+    $('tab-btn-orders').onclick = () => switchTab('tab-btn-orders', 'cashier-orders-panel');
+    $('tab-btn-reports').onclick = () => { switchTab('tab-btn-reports', 'cashier-reports-panel'); renderReports(); };
+    $('tab-btn-catalog').onclick = () => switchTab('tab-btn-catalog', 'menu-form');
+    $('tab-btn-pay').onclick = () => switchTab('tab-btn-pay', 'payment-form');
 
     // Auth Login Supabase
     $('login-form').onsubmit = async e => {
