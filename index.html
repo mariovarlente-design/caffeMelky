@@ -24,12 +24,14 @@
     .shell{width:min(100%,480px);min-height:calc(100 * min(var(--vh,1vh),1vh));margin:auto;background:var(--paper);box-shadow:0 24px 70px #64432829;position:relative;display:flex;flex-direction:column}
     @media(min-width:640px){.scene{padding:28px}.shell{border-radius:26px;overflow:hidden;min-height:760px}}
     .serif{font-family:'Fraunces',serif}
-    .action{background:#ba812f;color:white;border:0;border-radius:11px;padding:12px 17px;font-weight:700}
+    .action{background:#ba812f;color:white;border:0;border-radius:11px;padding:12px 17px;font-weight:700;transition:opacity 0.2s}
+    .action:active{opacity:0.8}
     .soft{background:#f7f1e9;color:#65441d;border:0;border-radius:10px;padding:10px 13px;font-weight:700}
     .field{width:100%;border:1px solid #e6ddd2;border-radius:10px;padding:11px 12px;background:white}
     .card{background:white;border:1px solid #eee6dc;border-radius:15px;padding:15px}
     .muted{color:#786c60}
-    .page{padding:22px 22px 32px;flex:1;overflow-y:auto}
+    .page{padding:22px 22px 32px;flex:1;overflow-y:auto;animation:fadeIn 0.25s ease-in-out}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
     .notice{background:#f7f1e9;border-radius:12px;padding:12px;color:#654b31}
     .nav{position:sticky;bottom:0;background:#fffefa;border-top:1px solid #eee6dc;display:grid;grid-template-columns:repeat(5,1fr);z-index:5}
     .nav button{padding:13px 2px;color:#806f5f;font-size:11px;font-weight:700;background:none;border:none}
@@ -110,7 +112,7 @@
      <h3 class="serif mt-8 mb-3 text-xl">Custom Request / Catatan Khusus</h3>
      <form id="custom-form" class="card">
       <textarea id="custom-text" class="field" maxlength="400" rows="3" required placeholder="Contoh: Less ice, extra gula aren..."></textarea>
-      <button class="action mt-3 w-full" type="submit">Tambah ke Keranjang</button>
+      <button class="action mt-3 w-full" type="submit">Tambah Catatan ke Keranjang</button>
      </form>
     </section>
 
@@ -125,11 +127,11 @@
      
      <!-- Kontrol Jumlah (Qty) saat pesan -->
      <div class="flex items-center gap-3 mb-5">
-      <label class="font-bold">Jumlah:</label>
+      <label class="font-bold">Jumlah Porsi:</label>
       <div class="flex items-center border rounded-xl overflow-hidden bg-white">
-       <button type="button" id="qty-minus" class="px-3 py-1 bg-stone-100 font-bold">-</button>
-       <span id="qty-value" class="px-4 font-bold">1</span>
-       <button type="button" id="qty-plus" class="px-3 py-1 bg-stone-100 font-bold">+</button>
+       <button type="button" id="qty-minus" class="px-4 py-2 bg-stone-100 font-bold">-</button>
+       <span id="qty-value" class="px-5 font-bold">1</span>
+       <button type="button" id="qty-plus" class="px-4 py-2 bg-stone-100 font-bold">+</button>
       </div>
      </div>
 
@@ -298,7 +300,7 @@
     let currentPage = 'auth';
     let selectedCategory = 'Semua';
     let detailItem = null;
-    let currentQty = 1; // Variabel jumlah produk saat dipilih
+    let currentQty = 1;
     const cart = new Map();
 
     // Logika PWA Install Prompt
@@ -431,7 +433,7 @@
       const old = cart.get(item.id);
       const currentCount = old ? old.qty : 0;
       cart.set(item.id, {...item, qty: currentCount + qty});
-      message(`${qty}× ${item.name} ditambahkan ke keranjang.`);
+      message(`${qty}× ${item.name} berhasil ditambahkan ke keranjang.`);
     }
 
     function productCard(item) {
@@ -439,6 +441,9 @@
       card.className = 'card flex flex-col justify-between gap-3';
       
       const content = document.createElement('div');
+      content.style.cursor = 'pointer';
+      content.onclick = () => openDetail(item);
+
       if (item.image_url) {
         const img = document.createElement('img');
         img.src = item.image_url;
@@ -461,7 +466,7 @@
       content.append(tag, title, price);
 
       const actions = document.createElement('div');
-      actions.className = 'flex flex-wrap gap-2';
+      actions.className = 'flex flex-wrap gap-2 pt-1';
 
       const orderBtn = document.createElement('button');
       orderBtn.type = 'button';
@@ -473,22 +478,24 @@
       detailBtn.type = 'button';
       detailBtn.className = 'soft text-sm flex-1';
       detailBtn.textContent = 'Detail';
-      detailBtn.onclick = () => {
-        detailItem = item;
-        currentQty = 1; // Reset jumlah ke 1 setiap buka detail
-        $('qty-value').textContent = currentQty;
-        $('detail-image').src = item.image_url || '';
-        $('detail-image').hidden = !item.image_url;
-        $('detail-heading').textContent = item.name;
-        $('detail-category').textContent = item.category;
-        $('detail-description').textContent = item.description || 'Sajian spesial kafe kami.';
-        $('detail-price').textContent = money(item.price);
-        showPage('detail');
-      };
+      detailBtn.onclick = () => openDetail(item);
 
       actions.append(orderBtn, detailBtn);
       card.append(content, actions);
       return card;
+    }
+
+    function openDetail(item) {
+      detailItem = item;
+      currentQty = 1;
+      $('qty-value').textContent = currentQty;
+      $('detail-image').src = item.image_url || '';
+      $('detail-image').hidden = !item.image_url;
+      $('detail-heading').textContent = item.name;
+      $('detail-category').textContent = item.category;
+      $('detail-description').textContent = item.description || 'Sajian spesial kafe kami dengan rasa nikmat.';
+      $('detail-price').textContent = money(item.price);
+      showPage('detail');
     }
 
     function renderMenu() {
@@ -529,7 +536,6 @@
         const info = document.createElement('div');
         info.innerHTML = `<h3 class="font-bold">${item.name}</h3><p class="muted text-sm">${money(item.price)} × ${item.qty} = <span class="font-bold text-[#ba812f]">${money(item.price * item.qty)}</span></p>`;
         
-        // Kontrol tambah/kurang qty langsung di keranjang
         const controls = document.createElement('div');
         controls.className = 'flex items-center gap-2';
 
@@ -695,7 +701,7 @@
       const todayRevenue = todayOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
 
       $('report-today-revenue').textContent = money(todayRevenue);
-      $('report-today-count').textContent = `${todayOrders.length} pesanan berhasil dicatat pada hari ini.`;
+      $('report-today-count').textContent = `${todayOrders.length} pesanan berhasil dicatat hari ini.`;
 
       const allRevenue = dbOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
       $('report-total-all').textContent = `Total Keseluruhan Omzet: ${money(allRevenue)} dari ${dbOrders.length} total transaksi tersimpan.`;
@@ -711,7 +717,7 @@
     $('menu-search').oninput = renderMenu;
     $('detail-back').onclick = () => showPage('menu');
     
-    // Tombol Kuantitas (Plus & Minus) di Halaman Detail Produk
+    // Kontrol Kuantitas (Plus & Minus) di Halaman Detail Produk
     $('qty-minus').onclick = () => {
       if (currentQty > 1) {
         currentQty--;
@@ -731,12 +737,30 @@
       }
     };
 
-    // Fungsionalitas Tombol Lanjut ke Checkout
+    // Fungsionalitas Tombol Lanjut ke Checkout & Kembali
     $('checkout-button').onclick = () => {
       showPage('checkout');
     };
 
     $('checkout-back').onclick = () => {
+      showPage('cart');
+    };
+
+    // Handler Tambah Catatan Khusus
+    $('custom-form').onsubmit = e => {
+      e.preventDefault();
+      const text = $('custom-text').value.trim();
+      if (!text) return;
+      // Masukkan custom request sebagai item khusus di keranjang
+      const customItem = {
+        id: 'custom_' + Date.now(),
+        name: 'Catatan: ' + text,
+        price: 0,
+        qty: 1
+      };
+      cart.set(customItem.id, customItem);
+      $('custom-text').value = '';
+      message('Catatan khusus ditambahkan ke keranjang.');
       showPage('cart');
     };
 
