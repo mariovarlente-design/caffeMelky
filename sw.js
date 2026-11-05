@@ -1,6 +1,6 @@
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open('cafe-melky-v1').then((cache) => {
+    caches.open('melky-store-v1').then((cache) => {
       return cache.addAll([
         './index.html',
         './manifest.json'
