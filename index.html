@@ -211,12 +211,13 @@
     <button id="manage-back" class="soft mb-5" type="button">← Kembali</button>
     <h2 class="serif mb-2 text-2xl">Dashboard Kasir &amp; Kelola Toko</h2>
     
-    <!-- Tab Navigasi Kasir -->
-    <div class="grid grid-cols-4 gap-1 mb-4">
+    <!-- Tab Navigasi Kasir (5 Tombol) -->
+    <div class="grid grid-cols-5 gap-1 mb-4">
      <button id="tab-btn-orders" class="action text-xs py-2 px-1 rounded-lg">Pesanan</button>
      <button id="tab-btn-reports" class="soft text-xs py-2 px-1 rounded-lg">Laporan</button>
      <button id="tab-btn-catalog" class="soft text-xs py-2 px-1 rounded-lg">Produk</button>
      <button id="tab-btn-pay" class="soft text-xs py-2 px-1 rounded-lg">Bayar</button>
+     <button id="tab-btn-config" class="soft text-xs py-2 px-1 rounded-lg">No WA</button>
     </div>
 
     <!-- Panel 1: Live Pesanan Masuk -->
@@ -264,6 +265,15 @@
      <input id="manage-pay-file" type="file" accept="image/*" class="field bg-stone-50">
      <button class="action w-full mt-2" type="submit">Simpan Metode Pembayaran</button>
     </form>
+
+    <!-- Panel 4: Pengaturan Nomor WhatsApp Kasir (Baru) -->
+    <div id="cashier-config-panel" class="card space-y-3" hidden>
+     <h3 class="serif text-xl">Pengaturan WhatsApp Kasir</h3>
+     <p class="text-sm muted">Masukkan nomor WhatsApp kasir/toko yang akan menerima pesanan saat pelanggan menekan tombol kirim via WhatsApp.</p>
+     <label class="block font-bold">Nomor WhatsApp Toko</label>
+     <input id="config-wa-input" class="field" placeholder="Contoh: 6281234567890">
+     <button id="save-wa-config" class="action w-full" type="button">Simpan Nomor WhatsApp</button>
+    </div>
    </section>
   </main>
 
@@ -303,6 +313,9 @@
     let currentQty = 1;
     const cart = new Map();
 
+    // Ambil atau simpan No WA Toko di localStorage HP Kasir
+    let cashierWhatsApp = localStorage.getItem('arumi_cashier_wa') || '6281234567890';
+
     // Logika PWA Install Prompt
     let deferredPrompt;
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -330,6 +343,7 @@
       if (tapCount === 3) {
         tapCount = 0;
         showPage('manage');
+        $('config-wa-input').value = cashierWhatsApp;
         message('Mode Kasir Terbuka 🔐');
       } else {
         tapTimer = setTimeout(() => { tapCount = 0; }, 800);
@@ -428,7 +442,6 @@
       }
     }
 
-    // Fungsi Tambah ke Keranjang dengan Kuantitas Spesifik
     function addItemWithQty(item, qty = 1) {
       const old = cart.get(item.id);
       const currentCount = old ? old.qty : 0;
@@ -472,13 +485,13 @@
       orderBtn.type = 'button';
       orderBtn.className = 'action text-sm flex-1';
       orderBtn.textContent = '+ Pesan';
-      orderBtn.onclick = () => addItemWithQty(item, 1);
+      orderBtn.onclick = (e) => { e.stopPropagation(); addItemWithQty(item, 1); };
 
       const detailBtn = document.createElement('button');
       detailBtn.type = 'button';
       detailBtn.className = 'soft text-sm flex-1';
       detailBtn.textContent = 'Detail';
-      detailBtn.onclick = () => openDetail(item);
+      detailBtn.onclick = (e) => { e.stopPropagation(); openDetail(item); };
 
       actions.append(orderBtn, detailBtn);
       card.append(content, actions);
@@ -751,7 +764,6 @@
       e.preventDefault();
       const text = $('custom-text').value.trim();
       if (!text) return;
-      // Masukkan custom request sebagai item khusus di keranjang
       const customItem = {
         id: 'custom_' + Date.now(),
         name: 'Catatan: ' + text,
@@ -766,13 +778,14 @@
 
     document.querySelectorAll('[data-page]').forEach(b => b.onclick = () => showPage(b.dataset.page));
 
+    // Navigasi Tab Kasir (Diperbarui jadi 5 Tab)
     function switchTab(activeBtnId, activePanelId) {
-      ['tab-btn-orders', 'tab-btn-reports', 'tab-btn-catalog', 'tab-btn-pay'].forEach(id => {
+      ['tab-btn-orders', 'tab-btn-reports', 'tab-btn-catalog', 'tab-btn-pay', 'tab-btn-config'].forEach(id => {
         $(id).className = 'soft text-xs py-2 px-1 rounded-lg';
       });
       $(activeBtnId).className = 'action text-xs py-2 px-1 rounded-lg';
 
-      ['cashier-orders-panel', 'cashier-reports-panel', 'menu-form', 'payment-form'].forEach(id => {
+      ['cashier-orders-panel', 'cashier-reports-panel', 'menu-form', 'payment-form', 'cashier-config-panel'].forEach(id => {
         $(id).hidden = true;
       });
       $(activePanelId).hidden = false;
@@ -782,17 +795,43 @@
     $('tab-btn-reports').onclick = () => { switchTab('tab-btn-reports', 'cashier-reports-panel'); renderReports(); };
     $('tab-btn-catalog').onclick = () => switchTab('tab-btn-catalog', 'menu-form');
     $('tab-btn-pay').onclick = () => switchTab('tab-btn-pay', 'payment-form');
+    $('tab-btn-config').onclick = () => switchTab('tab-btn-config', 'cashier-config-panel');
 
+    // Simpan Nomor WhatsApp Kasir
+    $('save-wa-config').onclick = () => {
+      const newWa = $('config-wa-input').value.trim();
+      if (!newWa) return alert('Masukkan nomor WhatsApp yang valid.');
+      cashierWhatsApp = newWa.replace(/\D/g,'');
+      localStorage.setItem('arumi_cashier_wa', cashierWhatsApp);
+      message('Nomor WhatsApp kasir berhasil disimpan! ✅');
+    };
+
+    // Form Login (Diperbaiki agar toleran jika tabel profiles belum ada pengecekan ketat)
     $('login-form').onsubmit = async e => {
       e.preventDefault();
       const phone = $('login-phone').value.trim();
-      const { data, error } = await supabaseClient.from('profiles').select('*').eq('phone', phone).single();
-      if (error || !data) return message('Nomor WhatsApp belum terdaftar. Silakan daftar.');
-      currentCustomer = data;
-      $('profile-name').textContent = data.name;
-      $('profile-phone').textContent = 'WhatsApp: ' + data.phone;
-      showPage('home');
-      message('Berhasil masuk.');
+      
+      try {
+        let { data, error } = await supabaseClient.from('profiles').select('*').eq('phone', phone).single();
+        
+        if (error || !data) {
+          // Buat otomatis jika belum terdaftar agar pelanggan tidak gagal masuk
+          const newName = 'Pelanggan ' + phone.slice(-4);
+          const ins = await supabaseClient.from('profiles').insert([{ name: newName, phone, role: 'customer' }]).select().single();
+          if (ins.error) {
+            return message('Gagal masuk: ' + ins.error.message);
+          }
+          data = ins.data;
+        }
+
+        currentCustomer = data;
+        $('profile-name').textContent = data.name;
+        $('profile-phone').textContent = 'WhatsApp: ' + data.phone;
+        showPage('home');
+        message('Berhasil masuk.');
+      } catch (err) {
+        message('Terjadi kesalahan koneksi database.');
+      }
     };
 
     $('register-form').onsubmit = async e => {
@@ -877,10 +916,21 @@
       const { error } = await supabaseClient.from('orders').insert([newOrder]);
       if (error) return message('Gagal membuat pesanan: ' + error.message);
 
+      // Format Pesanan WhatsApp ke Toko/Kasir
+      let targetWa = cashierWhatsApp;
+      if (targetWa.startsWith('0')) targetWa = '62' + targetWa.slice(1);
+      
+      const orderSummaryText = items.join('\n- ');
+      const waMessage = encodeURIComponent(
+        `Halo Kasir Arumi Kafe,\n\nAda pesanan baru masuk! 🛒\n\n*No. Pesanan:* #${code}\n*Nama Pemesan:* ${buyer} (${number})\n*Waktu Ambil:* ${$('pickup').value}\n*Metode Bayar:* ${paymentMethod}\n\n*Daftar Menu:*\n- ${orderSummaryText}\n\n*Total Tagihan:* ${money(totalAmount)}\n\nMohon segera diproses ya. Terima kasih!`
+      );
+      
       cart.clear();
       showPage('orders');
       fetchAppData();
-      message('Pesanan berhasil dibuat dan dikirim ke sistem kasir!');
+
+      // Buka WhatsApp Kasir secara otomatis
+      window.open(`https://wa.me/${targetWa}?text=${waMessage}`, '_blank');
     };
 
     async function initApp() {
