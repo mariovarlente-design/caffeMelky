@@ -7,9 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
     <style>
-        :root { --caramel:#B8860B; --ink:#30251e; }
-        body { font-family:'DM Sans',sans-serif; color:var(--ink); background:#e6cbb4; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:16px; margin:0; }
-        .app-shell { width:100%; max-width:420px; background:#fff; border-radius:30px; box-shadow:0 24px 70px rgba(0,0,0,0.2); overflow:hidden; padding:24px; }
+        :root { --cream:#FAF8F5; --caramel:#B8860B; --ink:#30251e; }
+        * { box-sizing:border-box; }
+        body { margin:0; font-family:'DM Sans',sans-serif; color:var(--ink); background:#e6cbb4; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:16px; }
+        .app-shell { width:100%; max-width:420px; background:#fff; border-radius:30px; box-shadow:0 24px 70px rgba(0,0,0,0.2); overflow:hidden; padding:28px; }
         .serif { font-family:'Fraunces',serif; }
         .form-field { width:100%; border:1px solid #e6ddd2; border-radius:14px; padding:12px; background:#faf7f2; outline:none; font-size:13px; }
         .form-field:focus { border-color:var(--caramel); background:#fff; }
@@ -30,7 +31,7 @@
             <button onclick="pilihPeran('kasir')" id="btn-p-kasir" class="p-3 rounded-2xl border-2 border-stone-200 bg-white text-stone-700 font-bold text-xs text-center transition">Kasir / Admin</button>
         </div>
 
-        <!-- FORM PELANGGAN (MEMBER / DAFTAR) -->
+        <!-- FORM PELANGGAN -->
         <div id="form-pelanggan-box" class="space-y-4">
             <div id="info-member-status" class="bg-stone-50 p-3 rounded-xl border border-stone-200 text-xs text-stone-600">
                 Masukkan Nama dan No WhatsApp Anda untuk mulai memesan.
@@ -43,10 +44,10 @@
                 <label class="block text-xs font-bold text-stone-700 mb-1">Nomor WhatsApp</label>
                 <input type="text" id="login-wa" placeholder="Cth: 628123456789" class="form-field">
             </div>
-            <button onclick="masukSebagaiPelanggan()" class="action-btn">Masuk ke Menu Kafe</button>
+            <button onclick="masukSebagaiPelanggan()" class="action-btn">Masuk sebagai Pelanggan</button>
         </div>
 
-        <!-- FORM KASIR (PILIH KASIR 1 / KASIR 2) -->
+        <!-- FORM KASIR -->
         <div id="form-kasir-box" class="space-y-4" hidden>
             <div>
                 <label class="block text-xs font-bold text-stone-700 mb-1">Pilih Akun Kasir</label>
@@ -63,7 +64,6 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -76,7 +76,6 @@
             messagingSenderId: "563981647169",
             appId: "1:563981647169:web:f2815873b51787b9b375c0"
         };
-
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
@@ -99,25 +98,20 @@
             }
         };
 
-        // Cek jika sudah pernah login sebagai pelanggan sebelumnya
         window.addEventListener('DOMContentLoaded', () => {
             let saved = localStorage.getItem('melky_pelanggan');
             if(saved) {
                 let p = JSON.parse(saved);
                 document.getElementById('login-nama').value = p.nama || '';
                 document.getElementById('login-wa').value = p.wa || '';
-                document.getElementById('info-member-status').innerHTML = `✅ Selamat datang kembali, <b>${p.nama}</b>! Klik tombol di bawah untuk masuk.`;
+                document.getElementById('info-member-status').innerHTML = `✅ Selamat datang kembali, <b>${p.nama}</b>! Klik tombol di bawah untuk lanjut.`;
             }
         });
 
         window.masukSebagaiPelanggan = function() {
             let nama = document.getElementById('login-nama').value.trim();
             let wa = document.getElementById('login-wa').value.trim();
-
-            if(!nama || !wa) {
-                alert('Nama dan Nomor WhatsApp wajib diisi untuk melanjutkan!');
-                return;
-            }
+            if(!nama || !wa) { alert('Nama dan Nomor WhatsApp wajib diisi!'); return; }
 
             let pelangganData = {
                 nama, wa,
@@ -125,39 +119,31 @@
                 joinedAt: Date.now()
             };
             localStorage.setItem('melky_pelanggan', JSON.stringify(pelangganData));
-            
-            // Pindah ke halaman pelanggan
+            localStorage.removeItem('melky_active_kasir');
             window.location.href = 'index.html';
         };
-
-        window.masukAsKasir = async function() {} // placeholder
 
         window.masukSebagaiKasir = async function() {
             let kasirId = document.getElementById('login-kasir-pilih').value;
             let pass = document.getElementById('login-kasir-pass').value;
             let defaultPass = kasirId === 'kasir1' ? 'kasir123' : 'kasir456';
 
-            if(pass !== defaultPass) {
-                alert('Password kasir salah!');
-                return;
-            }
+            if(pass !== defaultPass) { alert('Password kasir salah!'); return; }
 
             const docRef = doc(db, "kasir_melky", kasirId);
             let docSnap = await getDoc(docRef);
-
             if(!docSnap.exists()) {
-                let defaultData = {
+                await setDoc(docRef, {
                     id: kasirId,
                     nama: kasirId === 'kasir1' ? 'Kasir Utama 1' : 'Kasir Shift 2',
                     waKasir: kasirId === 'kasir1' ? '628123456789' : '628987654321',
                     foto: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=300&q=80'
-                };
-                await setDoc(docRef, defaultData);
+                });
             }
 
             localStorage.setItem('melky_active_kasir', kasirId);
-            // Pindah ke halaman kasir
-            window.location.href = 'kasir.html';
+            localStorage.removeItem('melky_pelanggan');
+            window.location.href = 'index.html';
         };
     </script>
 </body>
