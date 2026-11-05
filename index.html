@@ -445,17 +445,19 @@
                 total += sub;
                 let info = `(${item.suhu}${item.catatan ? ', ' + item.catatan : ''})`;
 
+                // FITUR EDIT & HAPUS PESANAN DI KERANJANG
                 container.innerHTML += `
-                    <div class="flex items-center justify-between bg-stone-50 border border-stone-200/80 p-3 rounded-2xl gap-3">
+                    <div class="flex items-center justify-between bg-stone-50 border border-stone-200/80 p-3 rounded-2xl gap-2">
                         <div class="flex-1 min-w-0">
                             <h4 class="font-bold text-xs text-stone-900">${item.nama} <span class="text-amber-700 text-[10px]">${info}</span></h4>
                             <p class="text-xs font-semibold text-stone-500 mt-0.5">Rp ${item.harga.toLocaleString('id-ID')} x ${item.qty}</p>
                         </div>
-                        <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-xl border border-stone-200">
-                            <button onclick="updateCartQty('${key}', -1)" class="text-rose-500 font-bold px-1 text-xs">-</button>
+                        <div class="flex items-center gap-1 bg-white px-2 py-1 rounded-xl border border-stone-200">
+                            <button onclick="updateCartQty('${key}', -1)" class="text-rose-500 font-bold px-1.5 text-xs">-</button>
                             <span class="text-xs font-bold text-stone-800">${item.qty}</span>
-                            <button onclick="updateCartQty('${key}', 1)" class="text-emerald-600 font-bold px-1 text-xs">+</button>
+                            <button onclick="updateCartQty('${key}', 1)" class="text-emerald-600 font-bold px-1.5 text-xs">+</button>
                         </div>
+                        <button onclick="hapusItemCart('${key}')" class="text-rose-500 hover:text-rose-700 p-1.5 text-xs font-bold" title="Hapus item"><i class="fa-solid fa-trash-can"></i></button>
                     </div>
                 `;
             });
@@ -469,6 +471,13 @@
                 if(cartPelanggan[key].qty <= 0) delete cartPelanggan[key];
             }
             renderCart();
+        };
+
+        window.hapusItemCart = function(key) {
+            if(confirm('Hapus menu ini dari keranjang?')) {
+                delete cartPelanggan[key];
+                renderCart();
+            }
         };
 
         function loadPaymentConfigToCart() {
@@ -506,6 +515,7 @@
             loadPaymentConfigToCart();
         };
 
+        // CHECKOUT DENGAN FITUR KONFIRMASI / KIRIM PESANAN KE WA KASIR
         window.submitCheckoutOrder = async function() {
             let nama = document.getElementById('cart-nama-pemesan').value.trim();
             let metode = document.getElementById('cart-metode-bayar').value;
@@ -515,7 +525,17 @@
 
             let total = Object.values(cartPelanggan).reduce((s, i) => s + (i.harga * i.qty), 0);
             
-            let activeWaKasir = activeKasirAkun && activeKasirAkun.waKasir ? activeKasirAkun.waKasir : "628123456789";
+            // Ambil nomor WA langsung secara dinamis dari dokumen kasir yang aktif (Kasir 1 / Kasir 2)
+            let kasirIdTarget = activeKasirAkun ? activeKasirAkun.id : 'kasir1';
+            let activeWaKasir = "628123456789";
+
+            try {
+                let kasirDocSnap = await getDoc(doc(db, "kasir_melky", kasirIdTarget));
+                if(kasirDocSnap.exists() && kasirDocSnap.data().waKasir) {
+                    activeWaKasir = kasirDocSnap.data().waKasir;
+                }
+            } catch(e) {}
+
             activeWaKasir = activeWaKasir.replace(/[^0-9]/g, '');
 
             let newOrder = {
@@ -524,19 +544,19 @@
                 timestamp: Date.now(),
                 nama, metodeBayar: metode, items: {...cartPelanggan}, total,
                 status: 'Menunggu Konfirmasi',
-                kasirTujuan: activeKasirAkun ? activeKasirAkun.id : 'umum'
+                kasirTujuan: kasirIdTarget
             };
 
             try {
                 await addDoc(collection(db, "pesanan_melky"), newOrder);
 
-                let waText = `*KAFE MELKY - PESANAN BARU*\nPelanggan: *${nama}*\nBayar: *${metode}*\n\n*Rincian:*\n`;
+                let waText = `*KAFE MELKY - KONFIRMASI PESANAN*\nPelanggan: *${nama}*\nBayar: *${metode}*\n\n*Rincian Pesanan:*\n`;
                 Object.values(cartPelanggan).forEach(i => {
                     waText += `- ${i.nama} [${i.suhu}${i.catatan?', '+i.catatan:''}] (${i.qty}x) : Rp ${(i.harga*i.qty).toLocaleString('id-ID')}\n`;
                 });
-                waText += `\n*TOTAL: Rp ${total.toLocaleString('id-ID')}*`;
+                waText += `\n*TOTAL: Rp ${total.toLocaleString('id-ID')}*\n\n*Halo Kak, mohon konfirmasi pesanan saya apakah sudah benar?*`;
 
-                if(confirm("Pesanan berhasil dikirim ke Kasir! Ingin kirim juga via WhatsApp?")) {
+                if(confirm("Pesanan berhasil dikirim ke Sistem Kasir! Ingin kirim pesan konfirmasi via WhatsApp ke Kasir sekarang?")) {
                     window.open(`https://wa.me/${activeWaKasir}?text=${encodeURIComponent(waText)}`, '_blank');
                 }
 
@@ -593,7 +613,7 @@
             });
         }
 
-        // --- ADMIN KASIR DASHBOARD DENGAN PROFIL KASIR & UPLOAD FOTO ---
+        // --- ADMIN KASIR DASHBOARD ---
         function loadAdminData() {
             if(activeKasirAkun) {
                 getDoc(doc(db, "kasir_melky", activeKasirAkun.id)).then((docSnap) => {
@@ -735,7 +755,6 @@
             }
         };
 
-        // Simpan Profil Kasir (Nama, No WA, dan Upload Foto)
         window.adminSimpanProfilKasir = async function() {
             let namaKasirBaru = document.getElementById('kasir-set-nama').value.trim();
             let waKasirBaru = document.getElementById('kasir-set-wa').value.trim();
@@ -933,7 +952,7 @@
                     <span>Total Pembayaran:</span>
                     <span id="cart-total-price" class="text-amber-700 text-base">Rp 0</span>
                 </div>
-                <button onclick="submitCheckoutOrder()" class="action-btn bg-emerald-600 hover:bg-emerald-700">Kirim Pesanan & WhatsApp</button>
+                <button onclick="submitCheckoutOrder()" class="action-btn bg-emerald-600 hover:bg-emerald-700">Kirim Pesanan & Konfirmasi WhatsApp</button>
             </div>
         </div>
     </section>
@@ -995,7 +1014,7 @@
         </div>
     </section>
 
-    <!-- 7. SCREEN: PANEL ADMIN KASIR (DENGAN PROFIL & UPLOAD FOTO KASIR) -->
+    <!-- 7. SCREEN: PANEL ADMIN KASIR -->
     <section id="kasir-screen" class="screen" hidden>
         <header class="p-4 bg-stone-900 text-white flex justify-between items-center">
             <h2 id="kasir-title-badge" class="font-bold text-sm text-amber-400">Panel Admin Kasir</h2>
@@ -1003,7 +1022,6 @@
         </header>
 
         <div class="p-4 space-y-5">
-            <!-- PROFIL KASIR YANG AKTIF & UPLOAD FOTO -->
             <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3 shadow-sm text-center">
                 <img id="kasir-profile-img" class="w-16 h-16 rounded-full object-cover mx-auto border-2 border-amber-600 bg-stone-100 p-0.5">
                 <h3 class="font-bold text-xs text-stone-900">Edit Profil & WhatsApp Kasir</h3>
@@ -1017,7 +1035,7 @@
                         <input type="text" id="kasir-set-wa" placeholder="No WA Kasir (62812...)" class="form-field">
                     </div>
                     <div>
-                        <label class="block text-[11px] font-bold text-stone-700 mb-1">Ganti Foto Profil Kasir (Kamera / Galeri)</label>
+                        <label class="block text-[11px] font-bold text-stone-700 mb-1">Ganti Foto Profil Kasir</label>
                         <input type="file" id="kasir-set-foto" accept="image/*" class="text-xs text-stone-600 file:py-1 file:px-3 file:rounded-xl file:border-0 file:bg-amber-600 file:text-white">
                     </div>
                 </div>
