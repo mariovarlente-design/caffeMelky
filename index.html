@@ -134,7 +134,7 @@
         updateClock();
 
         // --- SOUND ---
-        function playSound() {
+        window.playSound = function() {
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
                 const osc = ctx.createOscillator();
@@ -147,7 +147,7 @@
             } catch(e){}
         }
 
-        // --- CEK SESI LOGIN PELANGGAN (Wajib di awal) ---
+        // --- CEK SESI LOGIN PELANGGAN ---
         window.checkInitialAuth = function() {
             let saved = localStorage.getItem('melky_pelanggan');
             if(!saved) {
@@ -156,16 +156,35 @@
                 const nav = document.getElementById('bottom-nav');
                 if(nav) nav.hidden = true;
             } else {
-                let p = JSON.parse(saved);
                 document.getElementById('bottom-nav').hidden = false;
                 switchScreen('home-screen');
                 initMenuSync();
             }
         };
 
-        window.submitLoginPelanggan = async function() {
-            let nama = document.getElementById('auth-nama').value.trim();
-            let wa = document.getElementById('auth-wa').value.trim();
+        // Switch Tab di Form Auth (Login / Daftar)
+        window.switchAuthTab = function(tabName) {
+            const loginForm = document.getElementById('form-login-pelanggan');
+            const registerForm = document.getElementById('form-register-pelanggan');
+            const btnLoginTab = document.getElementById('tab-login-btn');
+            const btnRegTab = document.getElementById('tab-reg-btn');
+
+            if(tabName === 'login') {
+                loginForm.hidden = false;
+                registerForm.hidden = true;
+                btnLoginTab.className = "flex-1 py-2 text-xs font-bold bg-amber-600 text-white rounded-xl shadow-sm transition";
+                btnRegTab.className = "flex-1 py-2 text-xs font-bold bg-stone-100 text-stone-600 rounded-xl transition";
+            } else {
+                loginForm.hidden = true;
+                registerForm.hidden = false;
+                btnRegTab.className = "flex-1 py-2 text-xs font-bold bg-amber-600 text-white rounded-xl shadow-sm transition";
+                btnLoginTab.className = "flex-1 py-2 text-xs font-bold bg-stone-100 text-stone-600 rounded-xl transition";
+            }
+        };
+
+        window.submitLoginPelanggan = function() {
+            let nama = document.getElementById('login-nama').value.trim();
+            let wa = document.getElementById('login-wa').value.trim();
 
             if(!nama || !wa) {
                 alert('Nama dan Nomor WhatsApp wajib diisi!');
@@ -178,11 +197,40 @@
                 joinedAt: Date.now()
             };
             localStorage.setItem('melky_pelanggan', JSON.stringify(pelangganData));
-            try { await addDoc(collection(db, "pelanggan_melky"), pelangganData); } catch(e){}
-
+            
             document.getElementById('bottom-nav').hidden = false;
             initMenuSync();
             switchScreen('home-screen');
+        };
+
+        window.submitRegisterPelanggan = async function() {
+            let nama = document.getElementById('reg-nama').value.trim();
+            let wa = document.getElementById('reg-wa').value.trim();
+            let fileInput = document.getElementById('reg-foto');
+
+            if(!nama || !wa) {
+                alert('Nama dan Nomor WhatsApp wajib diisi!');
+                return;
+            }
+
+            window.processImageUpload(fileInput, async (fotoUrl) => {
+                let pelangganData = {
+                    nama, wa,
+                    foto: fotoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+                    joinedAt: Date.now()
+                };
+                localStorage.setItem('melky_pelanggan', JSON.stringify(pelangganData));
+                try { 
+                    await addDoc(collection(db, "pelanggan_melky"), pelangganData); 
+                } catch(e){ 
+                    console.error(e); 
+                }
+
+                alert('🎉 Pendaftaran Berhasil! Selamat datang di Kafe Melky.');
+                document.getElementById('bottom-nav').hidden = false;
+                initMenuSync();
+                switchScreen('home-screen');
+            });
         };
 
         // --- NAVIGATION ---
@@ -223,7 +271,7 @@
             }
         };
 
-        // --- LOGIN KASIR (USERNAME & PASSWORD) ---
+        // --- LOGIN KASIR (DIPERBAIKI & AMAN DARI ERROR SILENT) ---
         window.bukaLoginKasirModal = function() {
             document.getElementById('kasir-login-modal').hidden = false;
         };
@@ -246,31 +294,36 @@
                 targetId = 'kasir2';
                 defaultPass = 'kasir456';
             } else {
-                alert('Username kasir tidak valid!');
+                alert('Username kasir tidak valid! Gunakan "kasir1" atau "kasir2".');
                 return;
             }
 
             if(pass === defaultPass) {
-                tutupLoginKasirModal();
-                const docRef = doc(db, "kasir_melky", targetId);
-                let docSnap = await getDoc(docRef);
+                try {
+                    const docRef = doc(db, "kasir_melky", targetId);
+                    let docSnap = await getDoc(docRef);
 
-                if(docSnap.exists()) {
-                    activeKasirAkun = { id: targetId, ...docSnap.data() };
-                } else {
-                    activeKasirAkun = {
-                        id: targetId,
-                        nama: targetId === 'kasir1' ? 'Kasir Utama 1' : 'Kasir Shift 2',
-                        waKasir: '628123456789',
-                        foto: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=300&q=80'
-                    };
-                    await setDoc(docRef, activeKasirAkun);
+                    if(docSnap.exists()) {
+                        activeKasirAkun = { id: targetId, ...docSnap.data() };
+                    } else {
+                        activeKasirAkun = {
+                            id: targetId,
+                            nama: targetId === 'kasir1' ? 'Kasir Utama 1' : 'Kasir Shift 2',
+                            waKasir: '628123456789',
+                            foto: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=300&q=80'
+                        };
+                        await setDoc(docRef, activeKasirAkun);
+                    }
+
+                    tutupLoginKasirModal();
+                    document.querySelectorAll('.screen').forEach(s => s.hidden = true);
+                    document.getElementById('kasir-screen').hidden = false;
+                    document.getElementById('bottom-nav').hidden = true;
+                    loadAdminData();
+                } catch(err) {
+                    console.error("Error login kasir:", err);
+                    alert("Gagal terhubung ke database Firebase. Pastikan koneksi internet stabil.");
                 }
-
-                document.querySelectorAll('.screen').forEach(s => s.hidden = true);
-                document.getElementById('kasir-screen').hidden = false;
-                document.getElementById('bottom-nav').hidden = true;
-                loadAdminData();
             } else {
                 alert('Password kasir salah!');
             }
@@ -579,7 +632,7 @@
                 if(!isFirstLoad) {
                     let hasNew = false;
                     snapshot.docChanges().forEach(c => { if(c.type === "added") hasNew = true; });
-                    if(hasNew) playSound();
+                    if(hasNew) window.playSound();
                 } else {
                     isFirstLoad = false;
                 }
@@ -636,10 +689,9 @@
                     document.getElementById('kasir-set-nama').value = activeKasirAkun.nama || '';
                     document.getElementById('kasir-set-wa').value = activeKasirAkun.waKasir || '';
                     document.getElementById('kasir-profile-img').src = activeKasirAkun.foto || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=300&q=80';
-                });
+                }).catch(e => console.error(e));
             }
 
-            // Realtime Menu & Rekap Penjualan
             onSnapshot(collection(db, "menu_melky"), (snap) => {
                 const tbody = document.getElementById('admin-menu-tbody');
                 if(!tbody) return;
@@ -658,7 +710,7 @@
                             <td class="p-2 font-bold text-stone-800 text-xs">${m.nama}<br>${badgeHabis}</td>
                             <td class="p-2 text-amber-700 font-bold text-xs">Rp ${m.harga.toLocaleString('id-ID')}</td>
                             <td class="p-2 text-center space-x-1">
-                                <button onclick="adminToggleHabis('${d.id}', ${!m.isHabis})" class="px-2 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-[10px] font-bold hover:bg-amber-100" title="Ubah Status Stok">${m.isHabis ? 'Ready' : 'Habis'}</button>
+                                <button onclick="adminToggleHabis('${d.id}', ${!m.isHabis})" class="px-2 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-[10px] font-bold hover:bg-amber-100">${m.isHabis ? 'Ready' : 'Habis'}</button>
                                 <button onclick="adminEditMenu('${d.id}', '${m.nama.replace(/'/g, "\\'")}', ${m.harga}, '${m.kategori}')" class="px-2 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold hover:bg-blue-100">Edit</button>
                                 <button onclick="adminHapusMenu('${d.id}')" class="px-2 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-[10px] font-bold hover:bg-rose-100">Hapus</button>
                             </td>
@@ -741,7 +793,7 @@
 
             if(!nama || isNaN(harga)) { alert('Nama dan Harga menu wajib diisi!'); return; }
 
-            processImageUpload(fileInput, async (fotoUrl) => {
+            window.processImageUpload(fileInput, async (fotoUrl) => {
                 try {
                     if(id) {
                         let data = {nama, harga, kategori};
@@ -785,7 +837,7 @@
 
             if(!activeKasirAkun) return;
 
-            processImageUpload(fileInput, async (fotoUrl) => {
+            window.processImageUpload(fileInput, async (fotoUrl) => {
                 activeKasirAkun.nama = namaKasirBaru || activeKasirAkun.nama;
                 activeKasirAkun.waKasir = waKasirBaru || activeKasirAkun.waKasir;
                 if(fotoUrl) activeKasirAkun.foto = fotoUrl;
@@ -804,7 +856,7 @@
             let runningText = document.getElementById('set-promo').value.trim();
             let qrisFile = document.getElementById('set-qris-file');
 
-            processImageUpload(qrisFile, async (qrisFoto) => {
+            window.processImageUpload(qrisFile, async (qrisFoto) => {
                 let payload = {metodeBayarConfig, noRekening, runningText};
                 if(qrisFoto) payload.qrisFoto = qrisFoto;
                 
@@ -830,28 +882,57 @@
         <button onclick="installPWA()" class="bg-white text-amber-900 px-3 py-1.5 rounded-lg text-[11px] font-bold hover:bg-amber-50">Instal</button>
     </div>
 
-    <!-- 0. SCREEN: AUTH / LOGIN PELANGGAN -->
+    <!-- 0. SCREEN: AUTH / LOGIN & DAFTAR PELANGGAN -->
     <section id="auth-screen" class="screen flex flex-col justify-center items-center p-6 bg-[#382419]">
-        <div class="w-full max-w-sm bg-white p-6 rounded-3xl shadow-2xl space-y-4 text-center">
-            <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-700 text-2xl font-bold serif">KM</div>
-            <div>
+        <div class="w-full max-w-sm bg-white p-6 rounded-3xl shadow-2xl space-y-4">
+            <div class="text-center">
+                <div class="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-700 text-2xl font-bold serif mb-2">KM</div>
                 <h2 class="serif text-2xl font-bold text-stone-900">Kafe Melky</h2>
-                <p class="text-xs text-stone-500 mt-1">Silakan masukkan data diri Anda untuk mulai memesan</p>
+                <p class="text-xs text-stone-500 mt-0.5">Silakan masuk atau daftar untuk mulai memesan</p>
             </div>
-            <div class="space-y-3 text-left pt-2">
+
+            <!-- TAB TOGGLE: LOGIN VS REGISTER -->
+            <div class="flex bg-stone-100 p-1 rounded-2xl gap-1">
+                <button type="button" id="tab-login-btn" onclick="switchAuthTab('login')" class="flex-1 py-2 text-xs font-bold bg-amber-600 text-white rounded-xl shadow-sm transition">Masuk / Login</button>
+                <button type="button" id="tab-reg-btn" onclick="switchAuthTab('register')" class="flex-1 py-2 text-xs font-bold bg-stone-100 text-stone-600 rounded-xl transition">Daftar Baru</button>
+            </div>
+
+            <!-- FORM 1: LOGIN PELANGGAN (Sudah terdaftar / punya akun) -->
+            <div id="form-login-pelanggan" class="space-y-3 pt-2">
                 <div>
-                    <label class="block text-xs font-bold text-stone-700 mb-1">Nama Lengkap</label>
-                    <input type="text" id="auth-nama" placeholder="Cth: Budi Santoso" class="form-field">
+                    <label class="block text-xs font-bold text-stone-700 mb-1">Nama Terdaftar</label>
+                    <input type="text" id="login-nama" placeholder="Nama Anda" class="form-field">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-stone-700 mb-1">Nomor WhatsApp</label>
-                    <input type="text" id="auth-wa" placeholder="Cth: 628123456789" class="form-field">
+                    <input type="text" id="login-wa" placeholder="No WhatsApp" class="form-field">
                 </div>
+                <button onclick="submitLoginPelanggan()" class="action-btn text-xs py-3 shadow-lg shadow-amber-500/20 mt-1">Masuk untuk Pesan</button>
             </div>
-            <button onclick="submitLoginPelanggan()" class="action-btn text-xs py-3.5 shadow-lg shadow-amber-500/20">Masuk / Mulai Pesan</button>
-            
-            <div class="pt-4 border-t border-stone-100">
-                <button onclick="bukaLoginKasirModal()" class="text-[11px] font-bold text-amber-700 hover:underline">🔐 Login Khusus Kasir / Admin</button>
+
+            <!-- FORM 2: DAFTAR PENGGUNA BARU -->
+            <div id="form-register-pelanggan" class="space-y-3 pt-2" hidden>
+                <div>
+                    <label class="block text-xs font-bold text-stone-700 mb-1">Nama Lengkap</label>
+                    <input type="text" id="reg-nama" placeholder="Nama Lengkap Anda" class="form-field">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-stone-700 mb-1">Nomor WhatsApp</label>
+                    <input type="text" id="reg-wa" placeholder="Cth: 628123456789" class="form-field">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-stone-700 mb-1">Foto Profil (Opsional)</label>
+                    <input type="file" id="reg-foto" accept="image/*" class="text-xs text-stone-600 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:bg-amber-600 file:text-white file:font-bold file:text-xs">
+                    <p class="text-[10px] text-stone-400 mt-0.5">*Maksimal 800KB</p>
+                </div>
+                <button onclick="submitRegisterPelanggan()" class="action-btn text-xs py-3 shadow-lg shadow-amber-500/20 mt-1 bg-emerald-600 hover:bg-emerald-700">Daftar & Mulai</button>
+            </div>
+
+            <!-- TOMBOL LOGIN KASIR / ADMIN -->
+            <div class="pt-4 border-t border-stone-100 text-center">
+                <button onclick="bukaLoginKasirModal()" class="text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-4 py-2 rounded-xl transition inline-flex items-center gap-1.5">
+                    <i class="fas fa-lock"></i> Login Khusus Kasir / Admin
+                </button>
             </div>
         </div>
     </section>
