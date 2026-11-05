@@ -1,15 +1,15 @@
 {
-  "name": "Kafe Melky POS",
-  "short_name": "MelkyPOS",
+  "name": "Arumi Kafe",
+  "short_name": "ArumiKafe",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#111827",
-  "theme_color": "#D4AF37",
+  "background_color": "#e6cbb4",
+  "theme_color": "#ba812f",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/924/924514.png",
-      "sizes": "512x512",
-      "type": "image/png"
+      "src": "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=192&q=80",
+      "sizes": "192x192",
+      "type": "image/jpeg"
     }
   ]
 }
