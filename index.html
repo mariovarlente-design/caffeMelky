@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+
     <style>
         :root { --cream:#FAF8F5; --caramel:#B8860B; --ink:#30251e; --muted:#8f8276; --paper:#ffffff; }
         * { box-sizing:border-box; }
@@ -31,10 +32,9 @@
         .action-btn:hover { background:#9a6f09; }
     </style>
 
-    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, setDoc, doc, onSnapshot, query, orderBy, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, setDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyA0ksXFs247mY7sAOlsDmdR_7kCyF5AVOc",
@@ -44,40 +44,55 @@
             messagingSenderId: "563981647169",
             appId: "1:563981647169:web:f2815873b51787b9b375c0"
         };
-
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
         let cartPelanggan = {};
         let menuCache = [];
+        let activeKasirAkun = null;
         let activeKategoriHome = 'Semua';
         let activeKategoriCatalog = 'Semua';
         let selectedProductForDetail = null;
         let isFirstLoad = true;
 
         window.addEventListener('DOMContentLoaded', () => {
-            let saved = localStorage.getItem('melky_pelanggan');
-            if(!saved) {
-                window.location.href = 'login.html';
-                return;
-            }
-            let p = JSON.parse(saved);
-            document.getElementById('prof-nama-teks').innerText = p.nama;
-            document.getElementById('prof-wa-teks').innerText = p.wa;
-            document.getElementById('prof-avatar').src = p.foto;
-            const cartNama = document.getElementById('cart-nama-pemesan');
-            if(cartNama) cartNama.value = p.nama;
+            let activeKasirId = localStorage.getItem('melky_active_kasir');
+            let savedPelanggan = localStorage.getItem('melky_pelanggan');
 
-            initMenuSync();
-            switchScreen('home-screen');
+            if(activeKasirId) {
+                // Masuk sebagai Kasir
+                getDoc(doc(db, "kasir_melky", activeKasirId)).then((docSnap) => {
+                    if(docSnap.exists()) {
+                        activeKasirAkun = { id: activeKasirId, ...docSnap.data() };
+                        document.querySelectorAll('.screen').forEach(s => s.hidden = true);
+                        document.getElementById('kasir-screen').hidden = false;
+                        document.getElementById('bottom-nav').hidden = true;
+                        loadAdminData();
+                    } else {
+                        window.location.href = 'login.html';
+                    }
+                });
+            } else if(savedPelanggan) {
+                // Masuk sebagai Pelanggan
+                let p = JSON.parse(savedPelanggan);
+                document.getElementById('prof-avatar').src = p.foto;
+                document.getElementById('prof-nama-teks').innerText = p.nama;
+                document.getElementById('prof-wa-teks').innerText = p.wa;
+                const cartNama = document.getElementById('cart-nama-pemesan');
+                if(cartNama) cartNama.value = p.nama;
+
+                initMenuSync();
+                switchScreen('home-screen');
+            } else {
+                window.location.href = 'login.html';
+            }
         });
 
         function updateClock() {
             const el = document.getElementById('realtime-clock');
             if(el) {
                 const now = new Date();
-                const options = { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' };
-                el.innerText = `${now.toLocaleDateString('id-ID', options)} | ${now.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}`;
+                el.innerText = `${now.toLocaleDateString('id-ID', {weekday:'short', day:'numeric', month:'short'})} | ${now.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}`;
             }
         }
         setInterval(updateClock, 1000);
@@ -112,6 +127,18 @@
             
             const shell = document.querySelector('.app-shell');
             if(shell) shell.scrollTop = 0;
+        };
+
+        window.logoutPelanggan = function() {
+            if(confirm('Keluar dari sesi ini?')) {
+                localStorage.removeItem('melky_pelanggan');
+                window.location.href = 'login.html';
+            }
+        };
+
+        window.exitKasir = function() {
+            localStorage.removeItem('melky_active_kasir');
+            window.location.href = 'login.html';
         };
 
         function initMenuSync() {
@@ -411,18 +438,163 @@
             });
         }
 
-        window.logoutPelanggan = function() {
-            if(confirm('Keluar dari sesi ini?')) {
-                localStorage.removeItem('melky_pelanggan');
-                window.location.href = 'login.html';
+        // --- ADMIN KASIR DASHBOARD ---
+        function loadAdminData() {
+            if(activeKasirAkun) {
+                getDoc(doc(db, "kasir_melky", activeKasirAkun.id)).then((docSnap) => {
+                    if(docSnap.exists()) {
+                        activeKasirAkun = { id: activeKasirAkun.id, ...docSnap.data() };
+                    }
+                    document.getElementById('kasir-title-badge').innerText = `Panel Admin (${activeKasirAkun.nama || activeKasirAkun.id})`;
+                    document.getElementById('kasir-set-nama').value = activeKasirAkun.nama || '';
+                    document.getElementById('kasir-set-wa').value = activeKasirAkun.waKasir || '';
+                    document.getElementById('kasir-profile-img').src = activeKasirAkun.foto || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=300&q=80';
+                });
             }
+
+            onSnapshot(collection(db, "menu_melky"), (snap) => {
+                const tbody = document.getElementById('admin-menu-tbody');
+                if(!tbody) return;
+                tbody.innerHTML = '';
+                if(snap.empty) {
+                    tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-center text-stone-400 text-xs">Belum ada menu.</td></tr>`;
+                    return;
+                }
+                snap.forEach(d => {
+                    let m = d.data();
+                    tbody.innerHTML += `
+                        <tr class="border-b border-stone-100">
+                            <td class="p-2"><img src="${m.foto || ''}" class="w-8 h-8 object-contain rounded-lg bg-stone-50"></td>
+                            <td class="p-2 font-bold text-stone-800">${m.nama}</td>
+                            <td class="p-2 text-amber-700">Rp ${m.harga.toLocaleString('id-ID')}</td>
+                            <td class="p-2 text-center space-x-1">
+                                <button onclick="adminEditMenu('${d.id}', '${m.nama.replace(/'/g, "\\'")}', ${m.harga}, '${m.kategori}')" class="px-2 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-bold">Edit</button>
+                                <button onclick="adminHapusMenu('${d.id}')" class="px-2 py-1 bg-rose-50 text-rose-600 rounded text-[10px] font-bold">Hapus</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            });
+
+            onSnapshot(doc(db, "pengaturan_melky", "config"), (docSnap) => {
+                if(docSnap.exists()) {
+                    let d = docSnap.data();
+                    document.getElementById('set-metode').value = d.metodeBayarConfig || 'Cash, QRIS, BCA';
+                    document.getElementById('set-rek').value = d.noRekening || '';
+                    document.getElementById('set-promo').value = d.runningText || '';
+                }
+            });
+
+            const liveTbody = document.getElementById('admin-live-orders-tbody');
+            onSnapshot(query(collection(db, "pesanan_melky"), orderBy("timestamp", "desc")), (snap) => {
+                if(!liveTbody) return;
+                liveTbody.innerHTML = '';
+                if(snap.empty) {
+                    liveTbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-stone-400">Tidak ada pesanan masuk.</td></tr>`;
+                    return;
+                }
+                snap.forEach(d => {
+                    let p = d.data();
+                    let list = Object.values(p.items).map(i => `${i.nama} (${i.qty}x)`).join(', ');
+                    liveTbody.innerHTML += `
+                        <tr class="border-b border-stone-100 text-xs">
+                            <td class="p-2 text-stone-500">${p.waktu}</td>
+                            <td class="p-2 font-bold text-stone-900">${p.nama}</td>
+                            <td class="p-2 text-stone-600">${list}</td>
+                            <td class="p-2 font-extrabold text-amber-700">Rp ${p.total.toLocaleString('id-ID')}</td>
+                            <td class="p-2 text-center space-x-1">
+                                <button onclick="updateStatusPesanan('${d.id}', 'Sedang Disiapkan 👨‍🍳')" class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-bold">Proses</button>
+                                <button onclick="updateStatusPesanan('${d.id}', 'Pesanan Siap / Selesai ✅')" class="px-2 py-1 bg-emerald-50 text-emerald-700 rounded text-[10px] font-bold">Selesai</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            });
+        }
+
+        window.updateStatusPesanan = async function(id, statusBaru) {
+            await updateDoc(doc(db, "pesanan_melky", id), { status: statusBaru });
+            alert(`Status diperbarui menjadi: "${statusBaru}"`);
+        };
+
+        window.adminSimpanProfilKasir = async function() {
+            let nama = document.getElementById('kasir-set-nama').value.trim();
+            let waKasir = document.getElementById('kasir-set-wa').value.trim();
+            let fileInput = document.getElementById('kasir-set-foto');
+
+            let saveProc = async (fotoUrl) => {
+                let payload = { id: activeKasirAkun.id, nama, waKasir };
+                if(fotoUrl) payload.foto = fotoUrl;
+                else if(activeKasirAkun && activeKasirAkun.foto) payload.foto = activeKasirAkun.foto;
+
+                await setDoc(doc(db, "kasir_melky", activeKasirAkun.id), payload, {merge:true});
+                alert('✨ Profil Kasir berhasil diperbarui!');
+                loadAdminData();
+            };
+
+            if(fileInput.files && fileInput.files[0]) {
+                let reader = new FileReader();
+                reader.onload = async (e) => { await saveProc(e.target.result); };
+                reader.readAsDataURL(fileInput.files[0]);
+            } else { await saveProc(null); }
+        };
+
+        window.adminSimpanMenu = async function() {
+            let id = document.getElementById('adm-edit-id').value;
+            let nama = document.getElementById('adm-nama').value.trim();
+            let harga = parseInt(document.getElementById('adm-harga').value);
+            let kategori = document.getElementById('adm-kategori').value;
+            let fileInput = document.getElementById('adm-file');
+
+            if(!nama || isNaN(harga)) { alert('Nama dan Harga wajib diisi!'); return; }
+
+            let saveToDb = async (fotoUrl) => {
+                if(id) {
+                    let data = {nama, harga, kategori};
+                    if(fotoUrl) data.foto = fotoUrl;
+                    await updateDoc(doc(db, "menu_melky", id), data);
+                } else {
+                    let fotoFinal = fotoUrl || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=500&q=80';
+                    await addDoc(collection(db, "menu_melky"), {nama, harga, kategori, foto: fotoFinal});
+                }
+                alert('Berhasil menyimpan menu!');
+                document.getElementById('adm-edit-id').value = '';
+                document.getElementById('adm-nama').value = '';
+                document.getElementById('adm-harga').value = '';
+            };
+
+            if(fileInput.files && fileInput.files[0]) {
+                let reader = new FileReader();
+                reader.onload = async (e) => { await saveToDb(e.target.result); };
+                reader.readAsDataURL(fileInput.files[0]);
+            } else { await saveToDb(null); }
+        };
+
+        window.adminEditMenu = function(id, nama, harga, kategori) {
+            document.getElementById('adm-edit-id').value = id;
+            document.getElementById('adm-nama').value = nama;
+            document.getElementById('adm-harga').value = harga;
+            document.getElementById('adm-kategori').value = kategori;
+        };
+
+        window.adminHapusMenu = async function(id) {
+            if(confirm('Hapus menu ini?')) { await deleteDoc(doc(db, "menu_melky", id)); }
+        };
+
+        window.adminSimpanPengaturan = async function() {
+            let metodeBayarConfig = document.getElementById('set-metode').value.trim();
+            let noRekening = document.getElementById('set-rek').value.trim();
+            let runningText = document.getElementById('set-promo').value.trim();
+            await setDoc(doc(db, "pengaturan_melky", "config"), {metodeBayarConfig, noRekening, runningText}, {merge:true});
+            alert('Pengaturan umum disimpan!');
         };
     </script>
 </head>
 <body class="scene">
   <main class="app-shell">
-    <!-- 1. BERANDA -->
-    <section id="home-screen" class="screen">
+    
+    <!-- 1. SCREEN: BERANDA PELANGGAN -->
+    <section id="home-screen" class="screen" hidden>
         <header class="relative bg-[#382419] h-52 overflow-hidden">
             <img src="https://images.pexels.com/photos/2074122/pexels-photo-2074122.jpeg?auto=compress&cs=tinysrgb&w=1280" class="w-full h-full object-cover opacity-60">
             <div class="absolute inset-0 bg-gradient-to-t from-stone-900/80 to-transparent"></div>
@@ -437,4 +609,198 @@
             </div>
         </header>
         <div class="p-4 space-y-4">
-            <input type="search" id="home-search" oninput="renderHomeProducts()"
+            <input type="search" id="home-search" oninput="renderHomeProducts()" placeholder="Cari minuman / makanan..." class="form-field">
+            <div class="flex gap-2 overflow-x-auto pb-1" id="home-filters">
+                <button type="button" class="pill active" data-cat="Semua" onclick="filterHomeCat('Semua')">Semua</button>
+                <button type="button" class="pill" data-cat="Minuman" onclick="filterHomeCat('Minuman')">Minuman</button>
+                <button type="button" class="pill" data-cat="Makanan" onclick="filterHomeCat('Makanan')">Makanan</button>
+                <button type="button" class="pill" data-cat="Cemilan" onclick="filterHomeCat('Cemilan')">Cemilan</button>
+            </div>
+            <div class="flex justify-between items-center pt-2">
+                <h3 class="font-bold text-sm text-stone-900">Menu Populer</h3>
+                <button onclick="switchScreen('catalog-screen')" class="text-xs font-bold text-amber-700">Lihat semua</button>
+            </div>
+            <div id="home-products-container" class="product-grid"></div>
+        </div>
+    </section>
+
+    <!-- 2. SCREEN: KATALOG -->
+    <section id="catalog-screen" class="screen" hidden>
+        <header class="p-4 bg-white border-b border-stone-200">
+            <p class="text-[10px] font-bold text-amber-700 uppercase tracking-widest">Menu Cafe</p>
+            <h2 class="serif text-xl font-bold text-stone-900 mt-0.5">Daftar Produk</h2>
+        </header>
+        <div class="p-4 space-y-4">
+            <input type="search" id="catalog-search" oninput="renderCatalogProducts()" placeholder="Cari menu..." class="form-field">
+            <div class="flex gap-2 overflow-x-auto pb-1" id="catalog-filters">
+                <button type="button" class="pill active" data-cat="Semua" onclick="filterCatalogCat('Semua')">Semua</button>
+                <button type="button" class="pill" data-cat="Minuman" onclick="filterCatalogCat('Minuman')">Minuman</button>
+                <button type="button" class="pill" data-cat="Makanan" onclick="filterCatalogCat('Makanan')">Makanan</button>
+                <button type="button" class="pill" data-cat="Cemilan" onclick="filterCatalogCat('Cemilan')">Cemilan</button>
+            </div>
+            <div id="catalog-products-container" class="product-grid"></div>
+        </div>
+    </section>
+
+    <!-- 3. SCREEN: DETAIL PRODUK -->
+    <section id="detail-screen" class="screen" hidden>
+        <div class="relative bg-stone-100 h-64 flex items-center justify-center p-4">
+            <img id="detail-img" class="max-h-full max-w-full object-contain">
+            <button onclick="switchScreen('home-screen')" class="absolute left-4 top-4 w-9 h-9 rounded-full bg-white shadow flex items-center justify-center font-bold text-sm">←</button>
+        </div>
+        <div class="p-5 space-y-4">
+            <div>
+                <h2 id="detail-name" class="serif text-2xl font-bold text-stone-900"></h2>
+                <p id="detail-price" class="text-base font-extrabold text-amber-700 mt-1"></p>
+            </div>
+            <p id="detail-desc" class="text-xs text-stone-600 leading-relaxed"></p>
+            <div class="space-y-3 pt-2 border-t border-stone-100">
+                <div>
+                    <label class="block text-xs font-bold text-stone-700 mb-1">Pilihan Suhu</label>
+                    <select id="detail-suhu" class="form-field"><option value="Es">Es</option><option value="Panas">Panas</option><option value="Normal">Normal</option></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-stone-700 mb-1">Catatan Khusus</label>
+                    <input type="text" id="detail-catatan" placeholder="Cth: Kurang manis..." class="form-field">
+                </div>
+            </div>
+            <div class="flex justify-between items-center pt-3 border-t border-stone-100">
+                <span class="font-bold text-xs">Jumlah</span>
+                <div class="flex items-center gap-4 bg-stone-100 px-3 py-1.5 rounded-xl">
+                    <button onclick="ubahDetailQty(-1)" class="font-bold text-sm">-</button>
+                    <span id="detail-qty" class="font-bold text-sm">1</span>
+                    <button onclick="ubahDetailQty(1)" class="font-bold text-sm">+</button>
+                </div>
+            </div>
+            <button onclick="tambahDdariDetailKeCart()" class="action-btn mt-4">Tambah ke Keranjang</button>
+        </div>
+    </section>
+
+    <!-- 4. SCREEN: KERANJANG -->
+    <section id="cart-screen" class="screen" hidden>
+        <header class="p-4 bg-white border-b border-stone-200">
+            <h2 class="serif text-xl font-bold text-stone-900">Keranjang Belanja</h2>
+        </header>
+        <div class="p-4 space-y-4">
+            <div id="cart-items-container" class="space-y-2.5"></div>
+            <div id="cart-summary-box" class="space-y-3 pt-3 border-t border-stone-200" hidden>
+                <div>
+                    <label class="block text-xs font-bold text-stone-700 mb-1">Nama Pemesan / No Meja</label>
+                    <input type="text" id="cart-nama-pemesan" class="form-field">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-stone-700 mb-1">Metode Pembayaran</label>
+                    <select id="cart-metode-bayar" onchange="onMetodeBayarChange()" class="form-field"><option value="Cash">Cash</option></select>
+                </div>
+                <div id="cart-payment-detail" hidden></div>
+                <div class="flex justify-between items-center font-extrabold text-sm pt-2">
+                    <span>Total:</span>
+                    <span id="cart-total-price" class="text-amber-700 text-base">Rp 0</span>
+                </div>
+                <button onclick="submitCheckoutOrder()" class="action-btn bg-emerald-600 hover:bg-emerald-700">Kirim Pesanan & Konfirmasi WhatsApp</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- 5. SCREEN: RIWAYAT PESANAN -->
+    <section id="orders-screen" class="screen" hidden>
+        <header class="p-4 bg-white border-b border-stone-200">
+            <h2 class="serif text-xl font-bold text-stone-900">Pesanan Saya</h2>
+        </header>
+        <div class="p-4 space-y-3" id="orders-list-container">
+            <p class="text-xs text-stone-400 text-center py-12">Memuat riwayat...</p>
+        </div>
+    </section>
+
+    <!-- 6. SCREEN: PROFIL PELANGGAN -->
+    <section id="profile-screen" class="screen" hidden>
+        <header class="p-4 bg-white border-b border-stone-200">
+            <h2 class="serif text-xl font-bold text-stone-900">Profil Pelanggan</h2>
+        </header>
+        <div class="p-4 space-y-4">
+            <div class="bg-white p-5 rounded-2xl border border-stone-200 text-center space-y-3 shadow-sm">
+                <img id="prof-avatar" class="w-20 h-20 rounded-full object-cover mx-auto border-2 border-amber-600 bg-stone-100 p-0.5">
+                <div>
+                    <h3 id="prof-nama-teks" class="serif text-lg font-bold text-stone-900"></h3>
+                    <p id="prof-wa-teks" class="text-xs text-stone-500 font-mono mt-0.5"></p>
+                </div>
+                <button onclick="logoutPelanggan()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold py-2.5 rounded-xl transition">Keluar / Ganti Akun</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- 7. SCREEN: PANEL ADMIN KASIR -->
+    <section id="kasir-screen" class="screen" hidden>
+        <header class="p-4 bg-stone-900 text-white flex justify-between items-center">
+            <h2 id="kasir-title-badge" class="font-bold text-sm text-amber-400">Panel Admin Kasir</h2>
+            <button onclick="exitKasir()" class="text-xs text-rose-400 font-bold px-2.5 py-1 bg-rose-900/30 rounded-lg">Keluar Kasir</button>
+        </header>
+        <div class="p-4 space-y-5">
+            <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3 shadow-sm text-center">
+                <img id="kasir-profile-img" class="w-16 h-16 rounded-full object-cover mx-auto border-2 border-amber-600 bg-stone-100 p-0.5">
+                <div class="space-y-2 text-left">
+                    <div>
+                        <label class="block text-[11px] font-bold text-stone-700 mb-1">Nama Kasir</label>
+                        <input type="text" id="kasir-set-nama" class="form-field">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-stone-700 mb-1">Nomor WhatsApp Kasir</label>
+                        <input type="text" id="kasir-set-wa" class="form-field">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-stone-700 mb-1">Ganti Foto Profil Kasir</label>
+                        <input type="file" id="kasir-set-foto" accept="image/*" class="text-xs text-stone-600">
+                    </div>
+                </div>
+                <button onclick="adminSimpanProfilKasir()" class="action-btn text-xs py-2 bg-amber-600 mt-2">Simpan Profil Kasir</button>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3 shadow-sm">
+                <h3 class="font-bold text-xs text-stone-900">Kelola Menu Kafe</h3>
+                <input type="hidden" id="adm-edit-id">
+                <input type="text" id="adm-nama" placeholder="Nama Menu" class="form-field">
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="number" id="adm-harga" placeholder="Harga (Rp)" class="form-field">
+                    <select id="adm-kategori" class="form-field"><option value="Minuman">Minuman</option><option value="Makanan">Makanan</option><option value="Cemilan">Cemilan</option></select>
+                </div>
+                <input type="file" id="adm-file" accept="image/*" class="text-xs text-stone-600">
+                <button onclick="adminSimpanMenu()" class="action-btn text-xs py-2.5">Simpan Menu</button>
+                <div class="max-h-48 overflow-y-auto mt-2">
+                    <table class="w-full text-left text-xs">
+                        <thead><tr class="text-stone-400 border-b"><th class="p-2">Foto</th><th class="p-2">Nama</th><th class="p-2">Harga</th><th class="p-2 text-center">Aksi</th></tr></thead>
+                        <tbody id="admin-menu-tbody"><tr><td colspan="4" class="p-3 text-center text-stone-400">Memuat...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3 shadow-sm">
+                <h3 class="font-bold text-xs text-stone-900">Pengaturan Pembayaran</h3>
+                <input type="text" id="set-metode" placeholder="Metode (Cash, QRIS)" class="form-field">
+                <input type="text" id="set-rek" placeholder="No Rekening" class="form-field">
+                <input type="text" id="set-promo" placeholder="Running Text" class="form-field">
+                <button onclick="adminSimpanPengaturan()" class="action-btn text-xs py-2.5 bg-emerald-600">Simpan Pengaturan</button>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3 shadow-sm">
+                <h3 class="font-bold text-xs text-stone-900">Pesanan Masuk Live</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead><tr class="text-stone-400 border-b"><th class="p-2">Waktu</th><th class="p-2">Pemesan</th><th class="p-2">Pesanan</th><th class="p-2">Total</th><th class="p-2 text-center">Aksi</th></tr></thead>
+                        <tbody id="admin-live-orders-tbody"><tr><td colspan="5" class="p-4 text-center text-stone-400">Menghubungkan...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- NAVIGASI BAWAH PELANGGAN -->
+    <nav id="bottom-nav" class="nav">
+        <button type="button" data-target="home-screen" class="active" onclick="switchScreen('home-screen')"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10H3z"/><path d="M9 20v-7h6v7"/></svg><span>Beranda</span></button>
+        <button type="button" data-target="catalog-screen" onclick="switchScreen('catalog-screen')"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 7h16l-1 14H5L4 7ZM8 7V5a4 4 0 0 1 8 0v2"/></svg><span>Produk</span></button>
+        <button type="button" data-target="orders-screen" onclick="switchScreen('orders-screen')"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/></svg><span>Pesanan</span></button>
+        <button type="button" data-target="cart-screen" onclick="switchScreen('cart-screen')"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 4h2l2 12h12l2-9H6M9 21h.01M18 21h.01"/></svg><span>Keranjang</span></button>
+        <button type="button" data-target="profile-screen" onclick="switchScreen('profile-screen')"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>Profil</span></button>
+    </nav>
+  </main>
+</body>
+</html>
