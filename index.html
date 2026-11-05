@@ -1,1321 +1,744 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Kafe Melky - Coffee & Eatery</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
-
-    <!-- Supabase SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="data:application/manifest+json,{
-        \"name\": \"Kafe Melky POS\",
-        \"short_name\": \"MelkyPOS\",
-        \"start_url\": \".\",
-        \"display\": \"standalone\",
-        \"background_color\": \"#FAF8F5\",
-        \"theme_color\": \"#B8860B\",
-        \"icons\": [{\"src\": \"https://cdn-icons-png.flaticon.com/512/924/924514.png\", \"sizes\": \"512x512\", \"type\": \"image/png\"}]
-    }">
-
-    <style>
-        :root { --cream:#FAF8F5; --caramel:#B8860B; --ink:#30251e; --muted:#8f8276; --paper:#ffffff; }
-        * { box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
-        body { margin:0; font-family:'DM Sans',sans-serif; color:var(--ink); background:#e6cbb4; }
-        .serif { font-family:'Fraunces',serif; }
-        .scene { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:0; }
-        @media(min-width:640px){ .scene { padding:20px; } }
-        .app-shell { width:100%; max-width:480px; height:100vh; max-height:900px; background:var(--paper); box-shadow:0 24px 70px rgba(0,0,0,0.2); position:relative; overflow:hidden; display:flex; flex-direction:column; }
-        @media(min-width:640px){ .app-shell { border-radius:35px; height:88vh; } }
-        .screen { flex:1; overflow-y:auto; padding-bottom:90px; scrollbar-width:thin; }
-        .screen[hidden] { display:none !important; }
-        .nav { position:absolute; bottom:0; left:0; right:0; background:rgba(255,255,255,0.98); border-top:1px solid #eee8e1; display:grid; grid-template-columns:repeat(5,1fr); z-index:50; padding:10px 8px max(10px,env(safe-area-inset-bottom)); backdrop-filter:blur(12px); }
-        .nav button { display:flex; flex-direction:column; align-items:center; gap:3px; color:#988b7d; font-size:10px; font-weight:700; background:none; border:none; cursor:pointer; padding:4px 0; transition:color 0.2s; }
-        .nav button.active { color:var(--caramel); }
-        .pill { border-radius:999px; padding:7px 16px; background:#f5f1eb; color:#62564b; white-space:nowrap; font-size:12px; font-weight:700; border:none; cursor:pointer; transition:all 0.2s; }
-        .pill.active { background:var(--caramel); color:white; }
-        .product-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
-        .product-card { border:1px solid #efeae4; border-radius:20px; background:#fff; overflow:hidden; text-align:left; transition:transform .2s,box-shadow .2s; display:flex; flex-direction:column; cursor:pointer; position:relative; }
-        .product-card:active { transform:scale(0.98); }
-        .form-field { width:100%; border:1px solid #e6ddd2; border-radius:14px; padding:12px; background:#faf7f2; outline:none; font-size:13px; transition: all 0.2s; }
-        .form-field:focus { border-color:var(--caramel); background:#fff; }
-        .action-btn { background:var(--caramel); color:#fff; border-radius:14px; font-weight:700; padding:13px 16px; border:none; width:100%; cursor:pointer; transition:background 0.2s; }
-        .action-btn:active { background:#9a6f09; transform: scale(0.98); }
-        
-        @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
-        .animate-marquee { display: inline-block; animation: marquee 15s linear infinite; }
-        
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    </style>
-
-    <script>
-        // Konfigurasi Supabase Anda (Ganti dengan URL dan Anon Key dari Project Supabase Anda)
-        const SUPABASE_URL = 'xidhfhbocmhyfanudrzk';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpZGhmaGJvY21oeWZhbnVkcnprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4ODg0NDgsImV4cCI6MjEwOTQ2NDQ0OH0.NN6wBTIj_fXxiz2T5tenSuAXkqivM2HXtDHf9bKik58';
-
-        const { createClient } = supabase;
-        const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        let cartPelanggan = {};
-        let menuCache = [];
-        let activeKasirAkun = null;
-        let activeKategoriHome = 'Semua';
-        let activeKategoriCatalog = 'Semua';
-        let selectedProductForDetail = null;
-        let isFirstLoad = true;
-        let deferredPrompt = null;
-        let paymentConfigCache = { methods: ['Cash', 'QRIS', 'BCA'], qrisFoto: '', noRekening: '', runningText: 'Selamat datang di Kafe Melky!' };
-
-                // Fungsi upload gambar ke Supabase Storage (Bucket: melky-storage)
-        window.processImageUpload = async function(fileInput, callback) {
-            if(fileInput.files && fileInput.files[0]) {
-                const file = fileInput.files[0];
-                if(file.size > 800000) {
-                    alert('⚠️ Ukuran foto terlalu besar! Maksimal 800KB.');
-                    fileInput.value = '';
-                    return;
-                }
-
-                try {
-                    // Buat nama file unik berdasarkan waktu
-                    const fileExt = file.name.split('.').pop();
-                    const fileName = `${Date.now()}-${Math.random().toString(36.substring(2, 7))}.${fileExt}`;
-                    const filePath = `public/${fileName}`;
-
-                    // Upload file ke Supabase Storage bucket 'melky-storage'
-                    let { data, error } = await db.storage
-                        .from('melky-storage')
-                        .upload(filePath, file);
-
-                    if (error) {
-                        throw error;
-                    }
-
-                    // Dapatkan Public URL dari file yang baru di-upload
-                    let { data: publicUrlData } = db.storage
-                        .from('melky-storage')
-                        .getPublicUrl(filePath);
-
-                    fileInput.value = ''; // Reset input file
-                    callback(publicUrlData.publicUrl);
-
-                } catch (err) {
-                    console.error("Gagal mengunggah gambar ke Supabase Storage:", err);
-                    alert("Gagal mengunggah foto. Pastikan bucket 'melky-storage' sudah dibuat dan diset Public di Supabase.");
-                    callback(null);
-                }
-            } else {
-                callback(null);
-            }
-        };
-
-        function loadCart() {
-            const saved = localStorage.getItem('melky_cart');
-            if (saved) cartPelanggan = JSON.parse(saved);
-        }
-        function saveCart() {
-            localStorage.setItem('melky_cart', JSON.stringify(cartPelanggan));
-            updateCartBadge();
-        }
-        loadCart();
-
-        window.updateCartBadge = function() {
-            const totalItems = Object.values(cartPelanggan).reduce((sum, item) => sum + item.qty, 0);
-            const badge = document.getElementById('nav-cart-badge');
-            if(badge) {
-                if(totalItems > 0) {
-                    badge.innerText = totalItems;
-                    badge.classList.remove('hidden');
-                } else {
-                    badge.classList.add('hidden');
-                }
-            }
-        };
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            const banner = document.getElementById('pwa-install-banner');
-            if(banner) banner.classList.remove('hidden');
-        });
-
-        window.installPWA = async function() {
-            if(deferredPrompt) {
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                if(outcome === 'accepted') document.getElementById('pwa-install-banner').classList.add('hidden');
-                deferredPrompt = null;
-            } else {
-                alert('Buka menu browser lalu pilih "Tambahkan ke Layar Utama".');
-            }
-        };
-
-        function updateClock() {
-            const el = document.getElementById('realtime-clock');
-            if(el) {
-                const now = new Date();
-                const tglStr = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
-                const jamStr = now.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
-                el.innerText = `${tglStr} | ${jamStr}`;
-            }
-        }
-        setInterval(updateClock, 1000);
-        updateClock();
-
-        window.playSound = function() {
-            try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = ctx.createOscillator();
-                const g = ctx.createGain();
-                osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-                g.gain.setValueAtTime(0.3, ctx.currentTime);
-                g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-                osc.connect(g); g.connect(ctx.destination);
-                osc.start(); osc.stop(ctx.currentTime + 0.3);
-            } catch(e){}
-        };
-
-        window.checkInitialAuth = function() {
-            let saved = localStorage.getItem('melky_pelanggan');
-            const authScreen = document.getElementById('auth-screen');
-            const bottomNav = document.getElementById('bottom-nav');
-
-            if(!saved) {
-                if(authScreen) authScreen.hidden = false;
-                if(bottomNav) bottomNav.hidden = true;
-            } else {
-                if(authScreen) authScreen.hidden = true;
-                if(bottomNav) bottomNav.hidden = false;
-                switchScreen('home-screen');
-                initMenuSync();
-                updateCartBadge();
-            }
-        };
-
-        window.switchAuthTab = function(tabName) {
-            const loginForm = document.getElementById('form-login-pelanggan');
-            const registerForm = document.getElementById('form-register-pelanggan');
-            const btnLoginTab = document.getElementById('tab-login-btn');
-            const btnRegTab = document.getElementById('tab-reg-btn');
-
-            if(tabName === 'login') {
-                loginForm.hidden = false;
-                registerForm.hidden = true;
-                btnLoginTab.className = "flex-1 py-2 text-xs font-bold bg-amber-600 text-white rounded-xl shadow-sm transition";
-                btnRegTab.className = "flex-1 py-2 text-xs font-bold bg-stone-100 text-stone-600 rounded-xl transition";
-            } else {
-                loginForm.hidden = true;
-                registerForm.hidden = false;
-                btnRegTab.className = "flex-1 py-2 text-xs font-bold bg-amber-600 text-white rounded-xl shadow-sm transition";
-                btnLoginTab.className = "flex-1 py-2 text-xs font-bold bg-stone-100 text-stone-600 rounded-xl transition";
-            }
-        };
-
-        window.submitLoginPelanggan = function() {
-            let nama = document.getElementById('login-nama').value.trim();
-            let wa = document.getElementById('login-wa').value.trim();
-
-            if(!nama || !wa) {
-                alert('Nama dan Nomor WhatsApp wajib diisi!');
-                return;
-            }
-
-            let pelangganData = {
-                nama, wa,
-                foto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-                joinedAt: Date.now()
-            };
-            localStorage.setItem('melky_pelanggan', JSON.stringify(pelangganData));
-            
-            document.getElementById('auth-screen').hidden = true;
-            document.getElementById('bottom-nav').hidden = false;
-            initMenuSync();
-            switchScreen('home-screen');
-            updateCartBadge();
-        };
-
-        window.submitRegisterPelanggan = async function() {
-            let nama = document.getElementById('reg-nama').value.trim();
-            let wa = document.getElementById('reg-wa').value.trim();
-            let fileInput = document.getElementById('reg-foto');
-
-            if(!nama || !wa) {
-                alert('Nama dan Nomor WhatsApp wajib diisi!');
-                return;
-            }
-
-            window.processImageUpload(fileInput, async (fotoUrl) => {
-                let pelangganData = {
-                    nama, wa,
-                    foto: fotoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-                    joined_at: Date.now()
-                };
-                localStorage.setItem('melky_pelanggan', JSON.stringify({ nama, wa, foto: pelangganData.foto }));
-                
-                try { 
-                    await db.from('pelanggan_melky').insert([pelangganData]); 
-                } catch(e){ 
-                    console.error("Gagal simpan pelanggan:", e); 
-                }
-
-                alert('🎉 Pendaftaran Berhasil! Selamat datang di Kafe Melky.');
-                document.getElementById('auth-screen').hidden = true;
-                document.getElementById('bottom-nav').hidden = false;
-                initMenuSync();
-                switchScreen('home-screen');
-                updateCartBadge();
-            });
-        };
-
-        window.switchScreen = function(screenId) {
-            document.querySelectorAll('.screen').forEach(s => s.hidden = true);
-            const target = document.getElementById(screenId);
-            if(target) {
-                target.hidden = false;
-                target.scrollTop = 0;
-            }
-
-            document.querySelectorAll('.nav button').forEach(btn => {
-                if(btn.dataset.target === screenId) btn.classList.add('active');
-                else btn.classList.remove('active');
-            });
-
-            if(screenId === 'cart-screen') renderCart();
-            if(screenId === 'orders-screen') loadOrdersRealtime();
-            if(screenId === 'catalog-screen') renderCatalogProducts();
-            if(screenId === 'home-screen') renderHomeProducts();
-            if(screenId === 'profile-screen') loadPelangganProfile();
-        };
-
-        function loadPelangganProfile() {
-            let saved = localStorage.getItem('melky_pelanggan');
-            if(!saved) return;
-            let p = JSON.parse(saved);
-            document.getElementById('prof-avatar').src = p.foto;
-            document.getElementById('prof-nama-teks').innerText = p.nama;
-            document.getElementById('prof-wa-teks').innerText = p.wa;
-        }
-
-        window.logoutPelanggan = function() {
-            if(confirm('Keluar dari sesi akun ini?')) {
-                localStorage.removeItem('melky_pelanggan');
-                location.reload();
-            }
-        };
-
-        window.bukaLoginKasirModal = function() {
-            document.getElementById('kasir-login-modal').hidden = false;
-        };
-
-        window.tutupLoginKasirModal = function() {
-            document.getElementById('kasir-login-modal').hidden = true;
-        };
-
-        window.prosesLoginKasir = async function() {
-            let user = document.getElementById('kasir-user-input').value.trim();
-            let pass = document.getElementById('kasir-pass-input').value.trim();
-
-            let targetId = '';
-            let defaultPass = '';
-
-            if(user === 'kasir1') {
-                targetId = 'kasir1';
-                defaultPass = 'kasir123';
-            } else if(user === 'kasir2') {
-                targetId = 'kasir2';
-                defaultPass = 'kasir456';
-            } else {
-                alert('Username kasir tidak valid! Gunakan "kasir1" atau "kasir2".');
-                return;
-            }
-
-            if(pass === defaultPass) {
-                try {
-                    let { data, error } = await db.from('kasir_melky').select('*').eq('id', targetId).single();
-                    
-                    if(data) {
-                        activeKasirAkun = data;
-                    } else {
-                        activeKasirAkun = {
-                            id: targetId,
-                            nama: targetId === 'kasir1' ? 'Kasir Utama 1' : 'Kasir Shift 2',
-                            wa_kasir: '628123456789',
-                            foto: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=300&q=80'
-                        };
-                        await db.from('kasir_melky').upsert([activeKasirAkun]);
-                    }
-
-                    tutupLoginKasirModal();
-                    document.getElementById('auth-screen').hidden = true;
-                    document.querySelectorAll('.screen').forEach(s => s.hidden = true);
-                    document.getElementById('kasir-screen').hidden = false;
-                    document.getElementById('bottom-nav').hidden = true;
-                    loadAdminData();
-                } catch(err) {
-                    console.error("Error login kasir:", err);
-                    alert("Gagal terhubung ke Supabase. Periksa URL dan Anon Key Anda.");
-                }
-            } else {
-                alert('Password kasir salah!');
-            }
-        };
-
-        window.exitKasir = function() {
-            activeKasirAkun = null;
-            let saved = localStorage.getItem('melky_pelanggan');
-            if(!saved) {
-                document.querySelectorAll('.screen').forEach(s => s.hidden = true);
-                document.getElementById('auth-screen').hidden = false;
-                document.getElementById('bottom-nav').hidden = true;
-            } else {
-                document.getElementById('bottom-nav').hidden = false;
-                switchScreen('home-screen');
-            }
-        };
-
-        async function initMenuSync() {
-            // Ambil data menu awal
-            await fetchMenuData();
-            await fetchConfigData();
-
-            // Realtime Sync menggunakan Supabase Realtime Channels
-            db.channel('public:menu_melky')
-              .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_melky' }, payload => {
-                  fetchMenuData();
-              }).subscribe();
-
-            db.channel('public:pengaturan_melky')
-              .on('postgres_changes', { event: '*', schema: 'public', table: 'pengaturan_melky' }, payload => {
-                  fetchConfigData();
-              }).subscribe();
-        }
-
-        async function fetchMenuData() {
-            let { data, error } = await db.from('menu_melky').select('*');
-            if(data) {
-                menuCache = data.map(item => ({ ...item, isHabis: item.is_habis }));
-                renderHomeProducts();
-                renderCatalogProducts();
-            }
-        }
-
-        async function fetchConfigData() {
-            let { data, error } = await db.from('pengaturan_melky').select('*').eq('id', 'config').single();
-            if(data) {
-                paymentConfigCache = {
-                    methods: data.metode_bayar_config ? data.metode_bayar_config.split(',').map(m => m.trim()) : ['Cash', 'QRIS', 'BCA'],
-                    qrisFoto: data.qris_foto || '',
-                    noRekening: data.no_rekening || '',
-                    runningText: data.running_text || 'Selamat datang di Kafe Melky!'
-                };
-                const rtEl = document.getElementById('running-text-content');
-                if(rtEl) rtEl.innerText = paymentConfigCache.runningText;
-            }
-        }
-
-        window.filterHomeCat = function(cat) {
-            activeKategoriHome = cat;
-            document.querySelectorAll('#home-filters button').forEach(b => {
-                b.className = b.dataset.cat === cat ? 'pill active' : 'pill';
-            });
-            renderHomeProducts();
-        };
-
-        function renderHomeProducts() {
-            const container = document.getElementById('home-products-container');
-            if(!container) return;
-            container.innerHTML = '';
-
-            let filtered = menuCache.filter(item => activeKategoriHome === 'Semua' || item.kategori === activeKategoriHome);
-            let keyword = (document.getElementById('home-search')?.value || '').toLowerCase();
-            if(keyword) filtered = filtered.filter(i => i.nama.toLowerCase().includes(keyword));
-
-            if(filtered.length === 0) {
-                container.innerHTML = `<p class="text-xs text-stone-400 col-span-2 text-center py-6">Belum ada menu tersedia.</p>`;
-                return;
-            }
-
-            filtered.forEach(item => {
-                let habisBadge = item.isHabis ? `<span class="absolute inset-0 bg-stone-900/60 flex items-center justify-center text-white font-bold text-xs uppercase tracking-wider backdrop-blur-[1px]">Habis (Sold Out)</span>` : '';
-                let clickAction = item.isHabis ? '' : `onclick="openProductDetail('${item.id}')"`;
-
-                container.innerHTML += `
-                    <div class="product-card" ${clickAction}>
-                        <div class="h-32 w-full bg-stone-50 flex items-center justify-center p-2 overflow-hidden relative">
-                            <img src="${item.foto || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=500&q=80'}" class="max-h-full max-w-full object-cover rounded-xl" loading="lazy">
-                            <span class="absolute top-2 left-2 text-[9px] px-2 py-0.5 rounded-full bg-white/90 text-amber-800 font-bold shadow-xs">${item.kategori}</span>
-                            ${habisBadge}
-                        </div>
-                        <div class="p-3">
-                            <h4 class="font-bold text-xs text-stone-900 line-clamp-1">${item.nama}</h4>
-                            <p class="text-xs font-extrabold text-amber-700 mt-1">Rp ${item.harga.toLocaleString('id-ID')}</p>
-                        </div>
-                    </div>
-                `;
-            });
-        }
-
-        window.filterCatalogCat = function(cat) {
-            activeKategoriCatalog = cat;
-            document.querySelectorAll('#catalog-filters button').forEach(b => {
-                b.className = b.dataset.cat === cat ? 'pill active' : 'pill';
-            });
-            renderCatalogProducts();
-        };
-
-        function renderCatalogProducts() {
-            const container = document.getElementById('catalog-products-container');
-            if(!container) return;
-            container.innerHTML = '';
-
-            let filtered = menuCache.filter(item => activeKategoriCatalog === 'Semua' || item.kategori === activeKategoriCatalog);
-            let keyword = (document.getElementById('catalog-search')?.value || '').toLowerCase();
-            if(keyword) filtered = filtered.filter(i => i.nama.toLowerCase().includes(keyword));
-
-            if(filtered.length === 0) {
-                container.innerHTML = `<p class="text-xs text-stone-400 col-span-2 text-center py-8">Produk tidak ditemukan.</p>`;
-                return;
-            }
-
-            filtered.forEach(item => {
-                let habisBadge = item.isHabis ? `<span class="absolute inset-0 bg-stone-900/60 flex items-center justify-center text-white font-bold text-xs uppercase tracking-wider backdrop-blur-[1px]">Habis (Sold Out)</span>` : '';
-                let clickAction = item.isHabis ? '' : `onclick="openProductDetail('${item.id}')"`;
-
-                container.innerHTML += `
-                    <div class="product-card" ${clickAction}>
-                        <div class="h-36 w-full bg-stone-50 flex items-center justify-center p-2 overflow-hidden relative">
-                            <img src="${item.foto || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=500&q=80'}" class="max-h-full max-w-full object-cover rounded-xl" loading="lazy">
-                            <span class="absolute top-2 left-2 text-[9px] px-2 py-0.5 rounded-full bg-white/90 text-amber-800 font-bold shadow-xs">${item.kategori}</span>
-                            ${habisBadge}
-                        </div>
-                        <div class="p-3">
-                            <h4 class="font-bold text-xs text-stone-900 line-clamp-1">${item.nama}</h4>
-                            <p class="text-xs font-extrabold text-amber-700 mt-1">Rp ${item.harga.toLocaleString('id-ID')}</p>
-                        </div>
-                    </div>
-                `;
-            });
-        }
-
-        window.openProductDetail = function(id) {
-            const item = menuCache.find(i => i.id == id);
-            if(!item || item.isHabis) return;
-            selectedProductForDetail = item;
-
-            document.getElementById('detail-img').src = item.foto || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=500&q=80';
-            document.getElementById('detail-name').innerText = item.nama;
-            document.getElementById('detail-price').innerText = `Rp ${item.harga.toLocaleString('id-ID')}`;
-            document.getElementById('detail-desc').innerText = item.deskripsi || 'Nikmati kelezatan menu pilihan berkualitas dari Kafe Melky.';
-            document.getElementById('detail-qty').innerText = '1';
-            document.getElementById('detail-suhu').value = 'Es';
-            document.getElementById('detail-catatan').value = '';
-
-            document.querySelectorAll('.screen').forEach(s => s.hidden = true);
-            document.getElementById('detail-screen').hidden = false;
-        };
-
-        window.ubahDetailQty = function(delta) {
-            let qEl = document.getElementById('detail-qty');
-            let q = parseInt(qEl.innerText) + delta;
-            if(q < 1) q = 1;
-            qEl.innerText = q;
-        };
-
-        window.tambahDdariDetailKeCart = function() {
-            if(!selectedProductForDetail) return;
-            let qty = parseInt(document.getElementById('detail-qty').innerText);
-            let suhu = document.getElementById('detail-suhu').value;
-            let catatan = document.getElementById('detail-catatan').value.trim();
-            let cartKey = `${selectedProductForDetail.id}-${suhu}-${catatan}`;
-
-            if(cartPelanggan[cartKey]) {
-                cartPelanggan[cartKey].qty += qty;
-            } else {
-                cartPelanggan[cartKey] = {
-                    id: selectedProductForDetail.id,
-                    nama: selectedProductForDetail.nama,
-                    harga: selectedProductForDetail.harga,
-                    suhu, catatan, qty
-                };
-            }
-            saveCart();
-            alert('✅ Berhasil ditambahkan ke keranjang!');
-            switchScreen('cart-screen');
-        };
-
-        function renderCart() {
-            const container = document.getElementById('cart-items-container');
-            const summary = document.getElementById('cart-summary-box');
-            if(!container) return;
-            container.innerHTML = '';
-
-            let savedPelanggan = localStorage.getItem('melky_pelanggan');
-            if(savedPelanggan) {
-                let p = JSON.parse(savedPelanggan);
-                const inputNama = document.getElementById('cart-nama-pemesan');
-                if(inputNama && !inputNama.value) inputNama.value = p.nama;
-            }
-
-            let keys = Object.keys(cartPelanggan);
-            if(keys.length === 0) {
-                container.innerHTML = `<div class="text-center py-12"><i class="fas fa-shopping-basket text-4xl text-stone-300 mb-3"></i><p class="text-xs text-stone-400">Keranjang belanja masih kosong.</p></div>`;
-                if(summary) summary.hidden = true;
-                return;
-            }
-
-            if(summary) summary.hidden = false;
-            let total = 0;
-
-            keys.forEach(key => {
-                let item = cartPelanggan[key];
-                let sub = item.harga * item.qty;
-                total += sub;
-                let info = `(${item.suhu}${item.catatan ? ', ' + item.catatan : ''})`;
-
-                container.innerHTML += `
-                    <div class="flex items-center justify-between bg-stone-50 border border-stone-200/80 p-3 rounded-2xl gap-3">
-                        <div class="flex-1 min-w-0">
-                            <h4 class="font-bold text-xs text-stone-900 truncate">${item.nama}</h4>
-                            <p class="text-[10px] text-stone-500 mb-1">${info}</p>
-                            <p class="text-xs font-semibold text-stone-700">Rp ${item.harga.toLocaleString('id-ID')} x ${item.qty}</p>
-                        </div>
-                        <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-xl border border-stone-200">
-                            <button onclick="updateCartQty('${key}', -1)" class="w-6 h-6 flex items-center justify-center text-rose-500 font-bold text-sm bg-rose-50 rounded-lg">-</button>
-                            <span class="text-xs font-bold text-stone-800 w-4 text-center">${item.qty}</span>
-                            <button onclick="updateCartQty('${key}', 1)" class="w-6 h-6 flex items-center justify-center text-emerald-600 font-bold text-sm bg-emerald-50 rounded-lg">+</button>
-                        </div>
-                    </div>
-                `;
-            });
-            document.getElementById('cart-total-price').innerText = `Rp ${total.toLocaleString('id-ID')}`;
-            renderPaymentOptions();
-        }
-
-        window.updateCartQty = function(key, delta) {
-            if(cartPelanggan[key]) {
-                cartPelanggan[key].qty += delta;
-                if(cartPelanggan[key].qty <= 0) delete cartPelanggan[key];
-            }
-            saveCart();
-            renderCart();
-        };
-
-        function renderPaymentOptions() {
-            const select = document.getElementById('cart-metode-bayar');
-            const detailBox = document.getElementById('cart-payment-detail');
-            if(!select) return;
-
-            let currVal = select.value;
-            select.innerHTML = '';
-            
-            paymentConfigCache.methods.forEach(m => {
-                select.innerHTML += `<option value="${m}">${m}</option>`;
-            });
-            select.value = currVal || paymentConfigCache.methods[0];
-
-            const val = select.value.toLowerCase();
-            if(val.includes('qris')) {
-                detailBox.innerHTML = `<div class="p-3 bg-stone-50 rounded-2xl text-center border border-amber-500/30 mt-2"><p class="text-[11px] text-amber-800 font-bold mb-2">Scan QRIS Kafe Melky</p><img src="${paymentConfigCache.qrisFoto || 'https://via.placeholder.com/150?text=QRIS'}" class="w-32 h-32 object-contain mx-auto bg-white p-2 rounded-xl border border-stone-200"></div>`;
-                detailBox.hidden = false;
-            } else if(val.includes('bca') || val.includes('transfer')) {
-                detailBox.innerHTML = `<div class="p-3 bg-stone-50 rounded-2xl text-xs border border-amber-500/30 mt-2 space-y-1"><p class="font-bold text-amber-800">Rekening Pembayaran:</p><p class="font-mono text-stone-700 font-bold text-sm">${paymentConfigCache.noRekening || 'Belum diatur oleh kasir'}</p></div>`;
-                detailBox.hidden = false;
-            } else {
-                detailBox.hidden = true;
-            }
-        }
-
-        window.onMetodeBayarChange = function() {
-            renderPaymentOptions();
-        };
-
-        window.submitCheckoutOrder = async function() {
-            let nama = document.getElementById('cart-nama-pemesan').value.trim();
-            let tipeLayanan = document.getElementById('cart-tipe-layanan').value;
-            let metode = document.getElementById('cart-metode-bayar').value;
-
-            if(!nama) { alert('Silakan isi Nama Pemesan!'); return; }
-            if(Object.keys(cartPelanggan).length === 0) { alert('Keranjang masih kosong!'); return; }
-
-            let total = Object.values(cartPelanggan).reduce((s, i) => s + (i.harga * i.qty), 0);
-            let activeWaKasir = activeKasirAkun && activeKasirAkun.wa_kasir ? activeKasirAkun.wa_kasir : "628123456789";
-            activeWaKasir = activeWaKasir.replace(/[^0-9]/g, '');
-
-            let newOrder = {
-                id_pesanan: 'MLK-' + Date.now().toString().slice(-6),
-                waktu: new Date().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'}) + ' ' + new Date().toLocaleDateString('id-ID'),
-                timestamp: Date.now(),
-                nama, 
-                tipe_layanan: tipeLayanan, 
-                metode_bayar: metode, 
-                items: cartPelanggan, 
-                total,
-                status: 'Menunggu Konfirmasi'
-            };
-
-            try {
-                let { error } = await db.from('pesanan_melky').insert([newOrder]);
-                if(error) throw error;
-
-                let waText = `*KAFE MELKY - PESANAN BARU*\nID: ${newOrder.id_pesanan}\nPelanggan: *${nama}*\nTipe: *${tipeLayanan}*\nBayar: *${metode}*\n\n*Rincian:*\n`;
-                Object.values(cartPelanggan).forEach(i => {
-                    waText += `- ${i.nama} [${i.suhu}${i.catatan?', '+i.catatan:''}] (${i.qty}x) : Rp ${(i.harga*i.qty).toLocaleString('id-ID')}\n`;
-                });
-                waText += `\n*TOTAL: Rp ${total.toLocaleString('id-ID')}*`;
-
-                cartPelanggan = {};
-                saveCart();
-                
-                if(confirm("✅ Pesanan berhasil dikirim ke sistem!\n\nIngin kirim detail pesanan via WhatsApp ke Kasir?")) {
-                    window.open(`https://wa.me/${activeWaKasir}?text=${encodeURIComponent(waText)}`, '_blank');
-                }
-
-                switchScreen('orders-screen');
-            } catch(e) {
-                console.error(e);
-                alert("Gagal mengirim pesanan. Periksa koneksi Supabase.");
-            }
-        };
-
-        function loadOrdersRealtime() {
-            const container = document.getElementById('orders-list-container');
-            if(!container) return;
-
-            fetchOrdersData(container);
-
-            db.channel('public:pesanan_melky')
-              .on('postgres_changes', { event: '*', schema: 'public', table: 'pesanan_melky' }, payload => {
-                  if(!isFirstLoad) window.playSound();
-                  fetchOrdersData(container);
-              }).subscribe();
-        }
-
-        async function fetchOrdersData(container) {
-            let { data, error } = await db.from('pesanan_melky').select('*').order('timestamp', { ascending: false });
-            
-            isFirstLoad = false;
-            container.innerHTML = '';
-            
-            if(!data || data.length === 0) {
-                container.innerHTML = `<div class="text-center py-12"><i class="fas fa-receipt text-4xl text-stone-300 mb-3"></i><p class="text-xs text-stone-400">Belum ada riwayat pesanan.</p></div>`;
-                return;
-            }
-
-            const savedPelanggan = localStorage.getItem('melky_pelanggan');
-            const pelangganNama = savedPelanggan ? JSON.parse(savedPelanggan).nama : null;
-
-            data.forEach(p => {
-                let itemList = Object.values(p.items).map(i => `${i.nama} (${i.qty}x)`).join(', ');
-
-                let statusColor = "bg-amber-100 text-amber-800 border-amber-300";
-                let statusText = p.status || "Menunggu Konfirmasi";
-                if(statusText.includes("Disiapkan")) statusColor = "bg-blue-100 text-blue-800 border-blue-300";
-                if(statusText.includes("Diantar") || statusText.includes("Siap")) statusColor = "bg-purple-100 text-purple-800 border-purple-300";
-                if(statusText.includes("Selesai")) statusColor = "bg-emerald-100 text-emerald-800 border-emerald-300";
-
-                const isMine = pelangganNama && p.nama === pelangganNama;
-                const highlightClass = isMine ? "ring-2 ring-amber-500 bg-amber-50/50" : "bg-stone-50";
-
-                container.innerHTML += `
-                    <div class="${highlightClass} border border-stone-200 p-3.5 rounded-2xl space-y-2 shadow-xs transition-all">
-                        <div class="flex justify-between items-center text-xs">
-                            <span class="font-bold text-stone-900 flex items-center gap-1">
-                                ${p.nama} <span class="text-[9px] bg-stone-200 text-stone-700 px-1.5 py-0.5 rounded">${p.tipe_layanan || 'Pickup'}</span>
-                            </span>
-                            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${statusColor}">${statusText}</span>
-                        </div>
-                        <p class="text-xs text-stone-600 leading-relaxed">${itemList}</p>
-                        <div class="flex justify-between items-center pt-2 border-t border-stone-200/60 text-xs">
-                            <span class="text-stone-500 font-medium">${p.waktu}</span>
-                            <span class="font-extrabold text-stone-900">Rp ${p.total.toLocaleString('id-ID')}</span>
-                        </div>
-                    </div>
-                `;
-            });
-        }
-
-        async function loadAdminData() {
-            if(activeKasirAkun) {
-                let { data } = await db.from('kasir_melky').select('*').eq('id', activeKasirAkun.id).single();
-                if(data) {
-                    activeKasirAkun = data;
-                    document.getElementById('kasir-title-badge').innerText = `Panel Admin (${activeKasirAkun.nama || activeKasirAkun.id})`;
-                    document.getElementById('kasir-set-nama').value = activeKasirAkun.nama || '';
-                    document.getElementById('kasir-set-wa').value = activeKasirAkun.wa_kasir || '';
-                    document.getElementById('kasir-profile-img').src = activeKasirAkun.foto || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=300&q=80';
-                }
-            }
-
-            fetchAdminMenuTable();
-            fetchAdminLiveOrders();
-
-            db.channel('admin-channel')
-              .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_melky' }, () => fetchAdminMenuTable())
-              .on('postgres_changes', { event: '*', schema: 'public', table: 'pesanan_melky' }, () => fetchAdminLiveOrders())
-              .subscribe();
-        }
-
-        async function fetchAdminMenuTable() {
-            let { data } = await db.from('menu_melky').select('*');
-            const tbody = document.getElementById('admin-menu-tbody');
-            if(!tbody) return;
-            tbody.innerHTML = '';
-            
-            if(!data || data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-center text-stone-400 text-xs">Belum ada menu di database.</td></tr>`;
-                return;
-            }
-
-            data.forEach(m => {
-                let isHabis = m.is_habis;
-                let badgeHabis = isHabis ? `<span class="bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded text-[9px] font-bold">Sold Out</span>` : `<span class="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded text-[9px] font-bold">Tersedia</span>`;
-
-                tbody.innerHTML += `
-                    <tr class="border-b border-stone-100 hover:bg-stone-50">
-                        <td class="p-2"><img src="${m.foto || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=500&q=80'}" class="w-10 h-10 object-cover rounded-lg bg-stone-100"></td>
-                        <td class="p-2 font-bold text-stone-800 text-xs">${m.nama}<br>${badgeHabis}</td>
-                        <td class="p-2 text-amber-700 font-bold text-xs">Rp ${m.harga.toLocaleString('id-ID')}</td>
-                        <td class="p-2 text-center space-x-1">
-                            <button onclick="adminToggleHabis('${m.id}', ${!isHabis})" class="px-2 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-[10px] font-bold hover:bg-amber-100">${isHabis ? 'Ready' : 'Habis'}</button>
-                            <button onclick="adminEditMenu('${m.id}')" class="px-2 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold hover:bg-blue-100">Edit</button>
-                            <button onclick="adminHapusMenu('${m.id}')" class="px-2 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-[10px] font-bold hover:bg-rose-100">Hapus</button>
-                        </td>
-                    </tr>
-                `;
-            });
-        }
-
-        async function fetchAdminLiveOrders() {
-            let { data } = await db.from('pesanan_melky').select('*').order('timestamp', { ascending: false });
-            const liveTbody = document.getElementById('admin-live-orders-tbody');
-            if(!liveTbody) return;
-            liveTbody.innerHTML = '';
-
-            let totalOmzetHariIni = 0;
-            let totalTransaksi = data ? data.length : 0;
-            let todayStr = new Date().toLocaleDateString('id-ID');
-
-            if(!data || data.length === 0) {
-                liveTbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-stone-400">Belum ada pesanan masuk.</td></tr>`;
-                return;
-            }
-
-            data.forEach(p => {
-                if(p.waktu && p.waktu.includes(todayStr)) {
-                    totalOmzetHariIni += p.total;
-                }
-
-                let list = Object.values(p.items).map(i => `${i.nama} (${i.qty}x)`).join(', ');
-
-                liveTbody.innerHTML += `
-                    <tr class="border-b border-stone-100 hover:bg-stone-50">
-                        <td class="p-2 text-stone-500 text-[10px] whitespace-nowrap">${p.waktu}<br><span class="font-bold text-amber-700">${p.tipe_layanan || 'Pickup'}</span></td>
-                        <td class="p-2 font-bold text-stone-900 text-xs">${p.nama}</td>
-                        <td class="p-2 text-stone-600 text-xs max-w-[120px] truncate" title="${list}">${list}</td>
-                        <td class="p-2 font-extrabold text-amber-700 text-xs">Rp ${p.total.toLocaleString('id-ID')}</td>
-                        <td class="p-2 text-center space-x-1">
-                            <button onclick="updateStatusPesanan('${p.id}', 'Sedang Disiapkan 👨‍🍳')" class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-bold hover:bg-blue-100">Proses</button>
-                            <button onclick="updateStatusPesanan('${p.id}', 'Siap Diantar / Diambil 🏃')" class="px-2 py-1 bg-purple-50 text-purple-700 rounded text-[10px] font-bold hover:bg-purple-100">Antar</button>
-                            <button onclick="updateStatusPesanan('${p.id}', 'Selesai ✅')" class="px-2 py-1 bg-emerald-50 text-emerald-700 rounded text-[10px] font-bold hover:bg-emerald-100">Selesai</button>
-                            <button onclick="adminHapusPesanan('${p.id}')" class="px-2 py-1 bg-stone-100 text-stone-500 rounded text-[10px] font-bold hover:bg-rose-100 hover:text-rose-600" title="Hapus"><i class="fas fa-trash"></i></button>
-                        </td>
-                    </tr>
-                `;
-            });
-
-            document.getElementById('rekap-omzet').innerText = `Rp ${totalOmzetHariIni.toLocaleString('id-ID')}`;
-            document.getElementById('rekap-jumlah-order').innerText = totalTransaksi;
-        }
-
-        window.updateStatusPesanan = async function(id, statusBaru) {
-            await db.from('pesanan_melky').update({ status: statusBaru }).eq('id', id);
-            fetchAdminLiveOrders();
-        };
-
-        window.adminHapusPesanan = async function(id) {
-            if(confirm('Yakin ingin menghapus riwayat pesanan ini?')) {
-                await db.from('pesanan_melky').delete().eq('id', id);
-                fetchAdminLiveOrders();
-            }
-        };
-
-        window.adminToggleHabis = async function(id, statusHabis) {
-            await db.from('menu_melky').update({ is_habis: statusHabis }).eq('id', id);
-            fetchAdminMenuTable();
-        };
-
-        window.adminSimpanMenu = async function() {
-            let id = document.getElementById('adm-edit-id').value;
-            let nama = document.getElementById('adm-nama').value.trim();
-            let harga = parseInt(document.getElementById('adm-harga').value);
-            let kategori = document.getElementById('adm-kategori').value;
-            let fileInput = document.getElementById('adm-file');
-
-            if(!nama || isNaN(harga)) { alert('Nama dan Harga menu wajib diisi!'); return; }
-
-            window.processImageUpload(fileInput, async (fotoUrl) => {
-                if(id) {
-                    let payload = { nama, harga, kategori };
-                    if(fotoUrl) payload.foto = fotoUrl;
-                    await db.from('menu_melky').update(payload).eq('id', id);
-                    alert('✨ Menu berhasil diperbarui!');
-                } else {
-                    let fotoFinal = fotoUrl || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=500&q=80';
-                    await db.from('menu_melky').insert([{ nama, harga, kategori, foto: fotoFinal, is_habis: false }]);
-                    alert('🎉 Menu berhasil ditambahkan!');
-                }
-                document.getElementById('adm-edit-id').value = '';
-                document.getElementById('adm-nama').value = '';
-                document.getElementById('adm-harga').value = '';
-                document.getElementById('adm-file').value = '';
-                fetchAdminMenuTable();
-            });
-        };
-
-        window.adminEditMenu = function(id) {
-            const item = menuCache.find(m => m.id == id);
-            if(!item) return;
-
-            document.getElementById('adm-edit-id').value = item.id;
-            document.getElementById('adm-nama').value = item.nama;
-            document.getElementById('adm-harga').value = item.harga;
-            document.getElementById('adm-kategori').value = item.kategori;
-            document.getElementById('adm-file').value = '';
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        };
-
-        window.adminHapusMenu = async function(id) {
-            if(confirm('Yakin ingin menghapus menu ini?')) {
-                await db.from('menu_melky').delete().eq('id', id);
-                fetchAdminMenuTable();
-            }
-        };
-
-        window.adminSimpanProfilKasir = async function() {
-            let namaKasirBaru = document.getElementById('kasir-set-nama').value.trim();
-            let waKasirBaru = document.getElementById('kasir-set-wa').value.trim();
-            let fileInput = document.getElementById('kasir-set-foto');
-
-            if(!activeKasirAkun) return;
-
-            window.processImageUpload(fileInput, async (fotoUrl) => {
-                let payload = {
-                    nama: namaKasirBaru || activeKasirAkun.nama,
-                    wa_kasir: waKasirBaru || activeKasirAkun.wa_kasir
-                };
-                if(fotoUrl) payload.foto = fotoUrl;
-
-                await db.from('kasir_melky').update(payload).eq('id', activeKasirAkun.id);
-                alert('✨ Profil Kasir diperbarui!');
-                loadAdminData();
-            });
-        };
-
-        window.adminSimpanPengaturan = async function() {
-            let metodeBayarConfig = document.getElementById('set-metode').value.trim();
-            let noRekening = document.getElementById('set-rek').value.trim();
-            let runningText = document.getElementById('set-promo').value.trim();
-            let qrisFile = document.getElementById('set-qris-file');
-
-            window.processImageUpload(qrisFile, async (qrisFoto) => {
-                let payload = { id: 'config', metode_bayar_config: metodeBayarConfig, no_rekening: noRekening, running_text: runningText };
-                if(qrisFoto) payload.qris_foto = qrisFoto;
-                
-                await db.from('pengaturan_melky').upsert([payload]);
-                alert('✅ Pengaturan kafe disimpan!');
-                fetchConfigData();
-            });
-        };
-
-        window.addEventListener('DOMContentLoaded', () => {
-            checkInitialAuth();
-        });
-    </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arumi Kafe - Marketplace Online & POS</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Fraunces:wght@600;700&amp;display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <!-- Supabase JS Client Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root{--ink:#30251e;--caramel:#ba812f;--paper:#fffefa}
+    *{box-sizing:border-box}
+    body{margin:0;color:var(--ink);font-family:'DM Sans',sans-serif;background:#e6cbb4}
+    button,input,textarea,select{font:inherit}
+    button{cursor:pointer}
+    button:disabled{opacity:.55;cursor:wait}
+    :focus-visible{outline:3px solid #94601f;outline-offset:3px}
+    .scene{width:100%;min-height:calc(100 * min(var(--vh,1vh),1vh));background:#e6cbb4;display:flex;justify-content:center;align-items:center}
+    .shell{width:min(100%,480px);min-height:calc(100 * min(var(--vh,1vh),1vh));margin:auto;background:var(--paper);box-shadow:0 24px 70px #64432829;position:relative;display:flex;flex-direction:column}
+    @media(min-width:640px){.scene{padding:28px}.shell{border-radius:26px;overflow:hidden;min-height:760px}}
+    .serif{font-family:'Fraunces',serif}
+    .action{background:#ba812f;color:white;border:0;border-radius:11px;padding:12px 17px;font-weight:700}
+    .soft{background:#f7f1e9;color:#65441d;border:0;border-radius:10px;padding:10px 13px;font-weight:700}
+    .field{width:100%;border:1px solid #e6ddd2;border-radius:10px;padding:11px 12px;background:white}
+    .card{background:white;border:1px solid #eee6dc;border-radius:15px;padding:15px}
+    .muted{color:#786c60}
+    .page{padding:22px 22px 32px;flex:1;overflow-y:auto}
+    .notice{background:#f7f1e9;border-radius:12px;padding:12px;color:#654b31}
+    .nav{position:sticky;bottom:0;background:#fffefa;border-top:1px solid #eee6dc;display:grid;grid-template-columns:repeat(5,1fr);z-index:5}
+    .nav button{padding:13px 2px;color:#806f5f;font-size:11px;font-weight:700;background:none;border:none}
+    .nav button.active{color:#a36c25;background:#faf2e7}
+    .chips{display:flex;gap:8px;overflow-x:auto;padding:3px 0 12px}
+    .chips button{white-space:nowrap}
+    .chips button.active{background:#ba812f;color:#fff}
+    [hidden]{display:none!important}
+    @media print {
+      body * { visibility: hidden; }
+      #print-area, #print-area * { visibility: visible; }
+      #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+    }
+  </style>
 </head>
 <body class="scene">
-
-  <main class="app-shell">
-    <div id="pwa-install-banner" class="hidden bg-amber-600 text-white px-4 py-2.5 text-xs font-bold flex justify-between items-center z-[60] shadow-lg">
-        <span><i class="fas fa-download mr-1"></i> Instal aplikasi Kafe Melky ke HP Anda!</span>
-        <button onclick="installPWA()" class="bg-white text-amber-900 px-3 py-1.5 rounded-lg text-[11px] font-bold hover:bg-amber-50">Instal</button>
+  <main class="shell">
+   <header class="relative h-52 overflow-hidden bg-stone-800 shrink-0">
+    <img class="w-full h-full object-cover opacity-75" loading="lazy" src="https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=800&q=80" alt="Cafe">
+    <div class="absolute inset-0 bg-gradient-to-t from-stone-950/70 to-transparent"></div>
+    <div class="absolute bottom-5 left-6 text-white">
+     <p class="uppercase tracking-widest font-bold text-sm">marketplace &amp; cafe</p>
+     <h1 class="serif mt-1 text-3xl font-bold">Arumi Kafe</h1>
     </div>
+   </header>
 
-    <!-- 0. SCREEN: AUTH -->
-    <section id="auth-screen" class="screen flex flex-col justify-center items-center p-6 bg-[#382419]">
-        <div class="w-full max-w-sm bg-white p-6 rounded-3xl shadow-2xl space-y-4">
-            <div class="text-center">
-                <div class="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-700 text-2xl font-bold serif mb-2">KM</div>
-                <h2 class="serif text-2xl font-bold text-stone-900">Kafe Melky</h2>
-                <p class="text-xs text-stone-500 mt-0.5">Silakan pilih akses masuk atau daftar</p>
-            </div>
+   <p id="message" class="mx-5 mt-4 notice" role="status" aria-live="polite" hidden></p>
 
-            <div class="flex bg-stone-100 p-1 rounded-2xl gap-1">
-                <button type="button" id="tab-login-btn" onclick="switchAuthTab('login')" class="flex-1 py-2 text-xs font-bold bg-amber-600 text-white rounded-xl shadow-sm transition">Masuk Pelanggan</button>
-                <button type="button" id="tab-reg-btn" onclick="switchAuthTab('register')" class="flex-1 py-2 text-xs font-bold bg-stone-100 text-stone-600 rounded-xl transition">Daftar Baru</button>
-            </div>
-
-            <div id="form-login-pelanggan" class="space-y-3 pt-2">
-                <div>
-                    <label class="block text-[11px] font-bold text-stone-700 mb-1">Nama Terdaftar</label>
-                    <input type="text" id="login-nama" placeholder="Nama Anda" class="form-field">
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-stone-700 mb-1">Nomor WhatsApp</label>
-                    <input type="text" id="login-wa" placeholder="No WhatsApp" class="form-field">
-                </div>
-                <button onclick="submitLoginPelanggan()" class="action-btn text-xs py-3 shadow-lg shadow-amber-500/20 mt-1">Masuk untuk Pesan</button>
-            </div>
-
-            <div id="form-register-pelanggan" class="space-y-3 pt-2" hidden>
-                <div>
-                    <label class="block text-[11px] font-bold text-stone-700 mb-1">Nama Lengkap</label>
-                    <input type="text" id="reg-nama" placeholder="Nama Lengkap Anda" class="form-field">
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-stone-700 mb-1">Nomor WhatsApp</label>
-                    <input type="text" id="reg-wa" placeholder="Cth: 628123456789" class="form-field">
-                </div>
-                <div>
-                    <label class="block text-[11px] font-semibold text-stone-700 mb-1">Foto Profil (Opsional)</label>
-                    <input type="file" id="reg-foto" accept="image/*" class="text-xs text-stone-600 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:bg-amber-600 file:text-white file:font-bold file:text-xs">
-                    <p class="text-[10px] text-stone-400 mt-0.5">*Maksimal 800KB</p>
-                </div>
-                <button onclick="submitRegisterPelanggan()" class="action-btn text-xs py-3 shadow-lg shadow-amber-500/20 mt-1 bg-emerald-600 hover:bg-emerald-700">Daftar & Mulai</button>
-            </div>
-
-            <div class="pt-4 border-t border-stone-100 text-center">
-                <button onclick="bukaLoginKasirModal()" class="text-xs font-bold text-stone-500 hover:text-amber-700 transition inline-flex items-center gap-1">
-                    <i class="fas fa-lock text-[10px]"></i> Login Khusus Kasir / Admin
-                </button>
-            </div>
-        </div>
-    </section>
-
-    <!-- MODAL LOGIN KASIR -->
-    <div id="kasir-login-modal" hidden class="absolute inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-xs p-5 rounded-2xl shadow-2xl space-y-3">
-            <h3 class="font-bold text-sm text-stone-900"><i class="fas fa-lock text-amber-600 mr-1"></i> Login Kasir / Admin</h3>
-            <div>
-                <label class="block text-[11px] font-bold text-stone-700 mb-1">Username Kasir</label>
-                <input type="text" id="kasir-user-input" placeholder="kasir1 atau kasir2" class="form-field">
-            </div>
-            <div>
-                <label class="block text-[11px] font-bold text-stone-700 mb-1">Password</label>
-                <input type="password" id="kasir-pass-input" placeholder="Password" class="form-field">
-            </div>
-            <div class="flex gap-2 pt-2">
-                <button onclick="prosesLoginKasir()" class="flex-1 action-btn text-xs py-2.5">Masuk</button>
-                <button onclick="tutupLoginKasirModal()" class="px-4 bg-stone-200 text-stone-700 text-xs font-bold py-2.5 rounded-xl">Batal</button>
-            </div>
-        </div>
+   <!-- Halaman Auth Pelanggan -->
+   <section id="auth-page" class="page" aria-labelledby="auth-heading">
+    <h2 id="auth-heading" class="serif mb-2 text-2xl">Selamat Datang!</h2>
+    <p class="muted mb-5 text-base">Masuk untuk memesan kopi &amp; makanan favoritmu.</p>
+    <div class="flex gap-2 mb-5">
+     <button id="show-login" class="soft flex-1">Masuk</button>
+     <button id="show-register" class="soft flex-1">Daftar baru</button>
     </div>
+    <form id="login-form" class="card space-y-3">
+     <h3 class="serif text-xl">Masuk Akun</h3>
+     <label class="block font-bold">Nomor WhatsApp</label>
+     <input id="login-phone" class="field" required inputmode="tel" placeholder="08xxxxxxxxxx">
+     <button class="action w-full" type="submit">Masuk Aplikasi</button>
+    </form>
+    <form id="register-form" class="card space-y-3" hidden>
+     <h3 class="serif text-xl">Daftar Akun Baru</h3>
+     <label class="block font-bold">Nama Lengkap</label>
+     <input id="register-name" class="field" required maxlength="60">
+     <label class="block font-bold">Nomor WhatsApp</label>
+     <input id="register-phone" class="field" required inputmode="tel" placeholder="08xxxxxxxxxx">
+     <button class="action w-full" type="submit">Daftar Sekarang</button>
+    </form>
+    <button id="admin-entry" class="soft w-full mt-6" type="button">Dashboard Kasir &amp; Kelola Toko</button>
+   </section>
 
-    <!-- 1. SCREEN: BERANDA -->
-    <section id="home-screen" class="screen" hidden>
-        <header class="relative bg-[#382419] h-52 overflow-hidden">
-            <img src="https://images.pexels.com/photos/2074122/pexels-photo-2074122.jpeg?auto=compress&cs=tinysrgb&w=1280" class="w-full h-full object-cover opacity-60">
-            <div class="absolute inset-0 bg-gradient-to-t from-stone-900/90 via-stone-900/40 to-transparent"></div>
-            <div class="absolute bottom-4 left-5 right-5 text-white flex justify-between items-end">
-                <div>
-                    <p class="text-[11px] uppercase tracking-wider font-bold text-amber-400 mb-1">Selamat Datang di</p>
-                    <h2 class="serif text-3xl font-bold tracking-wide">Kafe Melky</h2>
-                </div>
-                <div class="bg-stone-900/80 backdrop-blur-sm px-3 py-2 rounded-xl text-[11px] font-bold text-amber-300 border border-amber-500/30 text-right">
-                    <span id="realtime-clock">Memuat Waktu...</span>
-                </div>
-            </div>
-        </header>
-
-        <div class="bg-amber-100 text-amber-900 text-xs font-bold py-2 px-4 overflow-hidden border-b border-amber-200 relative">
-            <span class="inline-block animate-marquee whitespace-nowrap" id="running-text-content">Selamat datang di Kafe Melky! Nikmati promo spesial hari ini.</span>
-        </div>
-
-        <div class="p-4 space-y-4">
-            <div>
-                <label class="block font-bold text-xs mb-1.5 text-stone-700">Cari Kopi Favoritmu</label>
-                <div class="relative">
-                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs"></i>
-                    <input type="search" id="home-search" oninput="renderHomeProducts()" placeholder="Cari minuman / makanan..." class="form-field pl-8">
-                </div>
-            </div>
-
-            <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar" id="home-filters">
-                <button type="button" class="pill active" data-cat="Semua" onclick="filterHomeCat('Semua')">Semua</button>
-                <button type="button" class="pill" data-cat="Minuman" onclick="filterHomeCat('Minuman')">Minuman</button>
-                <button type="button" class="pill" data-cat="Makanan" onclick="filterHomeCat('Makanan')">Makanan</button>
-                <button type="button" class="pill" data-cat="Cemilan" onclick="filterHomeCat('Cemilan')">Cemilan</button>
-            </div>
-
-            <div class="flex justify-between items-center pt-2">
-                <h3 class="font-bold text-sm text-stone-900">Menu Populer</h3>
-                <button onclick="switchScreen('catalog-screen')" class="text-xs font-bold text-amber-700 flex items-center gap-1">Lihat semua <i class="fas fa-arrow-right text-[10px]"></i></button>
-            </div>
-
-            <div id="home-products-container" class="product-grid pb-4"></div>
-        </div>
+   <!-- Area Pelanggan Marketplace -->
+   <div id="customer-area" class="flex flex-col flex-1 overflow-hidden" hidden>
+    <!-- Beranda -->
+    <section id="home-page" class="page" aria-labelledby="home-heading">
+     <p class="muted mb-1">Pilihan terbaik hari ini</p>
+     <h2 id="home-heading" class="serif mb-3 text-2xl">Awali harimu dengan kopi segar.</h2>
+     <label class="block font-bold mb-2">Cari produk marketplace</label>
+     <input id="home-search" class="field mb-4" type="search" placeholder="Cari menu...">
+     <div id="home-categories" class="chips"></div>
+     <h3 class="serif mt-3 mb-3 text-xl">Menu Populer</h3>
+     <div id="popular-list" class="grid grid-cols-2 gap-3"></div>
     </section>
 
-    <!-- 2. SCREEN: KATALOG -->
-    <section id="catalog-screen" class="screen" hidden>
-        <header class="p-4 bg-white border-b border-stone-200 sticky top-0 z-10">
-            <p class="text-[10px] font-bold text-amber-700 uppercase tracking-widest">Menu Cafe</p>
-            <h2 class="serif text-xl font-bold text-stone-900 mt-0.5">Daftar Produk</h2>
-        </header>
-
-        <div class="p-4 space-y-4">
-            <div class="relative">
-                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs"></i>
-                <input type="search" id="catalog-search" oninput="renderCatalogProducts()" placeholder="Cari menu..." class="form-field pl-8">
-            </div>
-
-            <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar" id="catalog-filters">
-                <button type="button" class="pill active" data-cat="Semua" onclick="filterCatalogCat('Semua')">Semua</button>
-                <button type="button" class="pill" data-cat="Minuman" onclick="filterCatalogCat('Minuman')">Minuman</button>
-                <button type="button" class="pill" data-cat="Makanan" onclick="filterCatalogCat('Makanan')">Makanan</button>
-                <button type="button" class="pill" data-cat="Cemilan" onclick="filterCatalogCat('Cemilan')">Cemilan</button>
-            </div>
-
-            <div id="catalog-products-container" class="product-grid pb-4"></div>
-        </div>
+    <!-- Menu Lengkap -->
+    <section id="menu-page" class="page" hidden aria-labelledby="menu-heading">
+     <h2 id="menu-heading" class="serif mb-2 text-2xl">Semua Menu</h2>
+     <input id="menu-search" class="field mb-4" type="search" placeholder="Cari menu...">
+     <div id="menu-categories" class="chips"></div>
+     <div id="menu-list" class="grid grid-cols-2 gap-3"></div>
+     <h3 class="serif mt-8 mb-3 text-xl">Custom Request / Catatan Khusus</h3>
+     <form id="custom-form" class="card">
+      <textarea id="custom-text" class="field" maxlength="400" rows="3" required placeholder="Contoh: Less ice, extra gula aren..."></textarea>
+      <button class="action mt-3 w-full" type="submit">Tambah ke Keranjang</button>
+     </form>
     </section>
 
-    <!-- 3. SCREEN: DETAIL -->
-    <section id="detail-screen" class="screen" hidden>
-        <div class="relative bg-stone-100 h-72 flex items-center justify-center p-4">
-            <img id="detail-img" class="max-h-full max-w-full object-contain drop-shadow-lg">
-            <button onclick="switchScreen('home-screen')" class="absolute left-4 top-4 w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center font-bold text-sm text-stone-700 hover:bg-stone-50">←</button>
-        </div>
-        <div class="p-5 space-y-4 bg-white rounded-t-3xl -mt-6 relative z-10">
-            <div>
-                <h2 id="detail-name" class="serif text-2xl font-bold text-stone-900"></h2>
-                <p id="detail-price" class="text-lg font-extrabold text-amber-700 mt-1"></p>
-            </div>
-            <p id="detail-desc" class="text-xs text-stone-600 leading-relaxed"></p>
-
-            <div class="space-y-3 pt-2 border-t border-stone-100">
-                <div>
-                    <label class="block text-xs font-bold text-stone-700 mb-1">Pilihan Suhu</label>
-                    <select id="detail-suhu" class="form-field">
-                        <option value="Es">Es</option>
-                        <option value="Panas">Panas</option>
-                        <option value="Normal">Normal</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-stone-700 mb-1">Catatan Khusus (Opsional)</label>
-                    <input type="text" id="detail-catatan" placeholder="Cth: Kurang manis, jangan pakai es..." class="form-field">
-                </div>
-            </div>
-
-            <div class="flex justify-between items-center pt-3 border-t border-stone-100">
-                <span class="font-bold text-xs text-stone-700">Jumlah</span>
-                <div class="flex items-center gap-4 bg-stone-100 px-3 py-1.5 rounded-xl">
-                    <button onclick="ubahDetailQty(-1)" class="w-7 h-7 flex items-center justify-center bg-white rounded-lg shadow-sm text-stone-700 font-bold text-sm">-</button>
-                    <span id="detail-qty" class="font-bold text-sm w-4 text-center">1</span>
-                    <button onclick="ubahDetailQty(1)" class="w-7 h-7 flex items-center justify-center bg-white rounded-lg shadow-sm text-stone-700 font-bold text-sm">+</button>
-                </div>
-            </div>
-
-            <button onclick="tambahDdariDetailKeCart()" class="action-btn mt-4 shadow-lg shadow-amber-500/30">Tambah ke Keranjang</button>
-        </div>
+    <!-- Detail Produk -->
+    <section id="detail-page" class="page" hidden>
+     <button id="detail-back" class="soft mb-5" type="button">← Kembali</button>
+     <img id="detail-image" class="w-full h-52 object-cover rounded-2xl mb-4" alt="Produk" hidden>
+     <h2 id="detail-heading" class="serif text-3xl mb-3"></h2>
+     <p id="detail-category" class="muted mb-2"></p>
+     <p id="detail-description" class="mb-5"></p>
+     <p id="detail-price" class="font-bold mb-5 text-lg"></p>
+     <button id="detail-order" class="action w-full" type="button">Pesan Sekarang</button>
     </section>
 
-    <!-- 4. SCREEN: KERANJANG -->
-    <section id="cart-screen" class="screen" hidden>
-        <header class="p-4 bg-white border-b border-stone-200 sticky top-0 z-10">
-            <h2 class="serif text-xl font-bold text-stone-900">Keranjang Belanja</h2>
-        </header>
-
-        <div class="p-4 space-y-4">
-            <div id="cart-items-container" class="space-y-2.5"></div>
-
-            <div id="cart-summary-box" class="space-y-3 pt-3 border-t border-stone-200" hidden>
-                <div>
-                    <label class="block text-xs font-bold text-stone-700 mb-1">Nama Pemesan</label>
-                    <input type="text" id="cart-nama-pemesan" placeholder="Nama Anda" class="form-field">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-stone-700 mb-1">Tipe Layanan</label>
-                    <select id="cart-tipe-layanan" class="form-field">
-                        <option value="Pickup / Ambil di Kasir">Pickup / Ambil di Kasir</option>
-                        <option value="Antar ke Tempat Duduk Kafe">Antar ke Tempat Duduk Kafe</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-stone-700 mb-1">Metode Pembayaran</label>
-                    <select id="cart-metode-bayar" onchange="onMetodeBayarChange()" class="form-field">
-                        <option value="Cash">Cash / Bayar di Kasir</option>
-                    </select>
-                </div>
-                <div id="cart-payment-detail" hidden></div>
-
-                <div class="flex justify-between items-center font-extrabold text-sm pt-2">
-                    <span>Total Pembayaran:</span>
-                    <span id="cart-total-price" class="text-amber-700 text-lg">Rp 0</span>
-                </div>
-                <button onclick="submitCheckoutOrder()" class="action-btn bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/30">Kirim Pesanan & WhatsApp</button>
-            </div>
-        </div>
+    <!-- Keranjang -->
+    <section id="cart-page" class="page" hidden>
+     <h2 class="serif mb-4 text-2xl">Keranjang Belanja</h2>
+     <p id="cart-empty" class="notice">Keranjang kosong.</p>
+     <div id="cart-list" class="space-y-3"></div>
+     <div id="cart-actions" hidden class="mt-6">
+      <p id="cart-total" class="font-bold text-right text-lg mb-3"></p>
+      <button id="checkout-button" class="action w-full" type="button">Lanjut ke Checkout</button>
+     </div>
     </section>
 
-    <!-- 5. SCREEN: PESANAN -->
-    <section id="orders-screen" class="screen" hidden>
-        <header class="p-4 bg-white border-b border-stone-200 sticky top-0 z-10">
-            <h2 class="serif text-xl font-bold text-stone-900">Pesanan Saya</h2>
-        </header>
-        <div class="p-4 space-y-3" id="orders-list-container">
-            <div class="text-center py-12"><i class="fas fa-circle-notch fa-spin text-2xl text-stone-300 mb-3"></i><p class="text-xs text-stone-400">Memuat riwayat pesanan...</p></div>
-        </div>
+    <!-- Checkout -->
+    <section id="checkout-page" class="page" hidden>
+     <h2 class="serif mb-4 text-2xl">Konfirmasi Pesanan</h2>
+     <form id="checkout-form" class="space-y-4">
+      <div>
+       <label class="block font-bold mb-1">Nama Pemesan</label>
+       <input id="buyer" class="field" required>
+      </div>
+      <div>
+       <label class="block font-bold mb-1">Nomor WhatsApp</label>
+       <input id="buyer-phone" class="field" required inputmode="tel">
+      </div>
+      <div>
+       <label class="block font-bold mb-1">Waktu Ambil</label>
+       <select id="pickup" class="field"><option>Segera (10-15 menit)</option><option>30 menit lagi</option><option>1 jam lagi</option></select>
+      </div>
+      <h3 class="serif text-xl pt-2">Metode Pembayaran</h3>
+      <div id="payment-options" class="space-y-2"></div>
+      <div id="payment-detail-card" class="card space-y-2" hidden>
+       <p id="payment-account-text" class="font-medium text-sm"></p>
+       <div id="qr-wrapper" class="text-center pt-2" hidden>
+        <img id="payment-qr-img" class="w-48 h-48 object-contain mx-auto border rounded-xl" alt="QRIS">
+       </div>
+      </div>
+      <p id="checkout-total" class="font-bold text-right text-lg pt-2"></p>
+      <button id="place-order" class="action w-full mt-2" type="submit">Buat Pesanan &amp; Kirim via WhatsApp</button>
+     </form>
     </section>
 
-    <!-- 6. SCREEN: PROFIL -->
-    <section id="profile-screen" class="screen" hidden>
-        <header class="p-4 bg-white border-b border-stone-200 sticky top-0 z-10">
-            <h2 class="serif text-xl font-bold text-stone-900">Profil Saya</h2>
-        </header>
-
-        <div class="p-4 space-y-4">
-            <div class="bg-white p-5 rounded-2xl border border-stone-200 text-center space-y-3 shadow-sm">
-                <img id="prof-avatar" class="w-20 h-20 rounded-full object-cover mx-auto border-2 border-amber-600 bg-stone-100 p-0.5">
-                <div>
-                    <h3 id="prof-nama-teks" class="serif text-lg font-bold text-stone-900"></h3>
-                    <p id="prof-wa-teks" class="text-xs text-stone-500 font-mono mt-0.5"></p>
-                </div>
-                <div class="pt-2">
-                    <button onclick="logoutPelanggan()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold py-2.5 rounded-xl transition">Keluar Sesi</button>
-                </div>
-            </div>
-        </div>
+    <!-- Histori Pesanan Pelanggan -->
+    <section id="orders-page" class="page" hidden>
+     <h2 class="serif mb-3 text-2xl">Histori Pesanan Saya</h2>
+     <div id="orders-list" class="space-y-3"></div>
+     <p id="orders-empty" class="muted">Belum ada histori pesanan.</p>
     </section>
 
-    <!-- 7. SCREEN: KASIR / ADMIN -->
-    <section id="kasir-screen" class="screen" hidden>
-        <header class="p-4 bg-stone-900 text-white flex justify-between items-center sticky top-0 z-10">
-            <h2 id="kasir-title-badge" class="font-bold text-sm text-amber-400">Panel Admin Kasir</h2>
-            <button onclick="exitKasir()" class="text-xs text-rose-400 font-bold px-2.5 py-1.5 bg-rose-900/30 rounded-lg border border-rose-800/50 hover:bg-rose-900/50">Keluar Kasir</button>
-        </header>
-
-        <div class="p-4 space-y-5">
-            <div class="bg-gradient-to-r from-amber-600 to-amber-700 p-4 rounded-2xl text-white shadow-md flex justify-between items-center">
-                <div>
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-amber-200">Omzet Hari Ini</p>
-                    <h3 id="rekap-omzet" class="serif text-xl font-bold mt-0.5">Rp 0</h3>
-                </div>
-                <div class="text-right">
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-amber-200">Total Transaksi</p>
-                    <h3 id="rekap-jumlah-order" class="text-lg font-bold mt-0.5">0</h3>
-                </div>
-            </div>
-
-            <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3 shadow-sm text-center">
-                <img id="kasir-profile-img" class="w-16 h-16 rounded-full object-cover mx-auto border-2 border-amber-600 bg-stone-100 p-0.5">
-                <h3 class="font-bold text-xs text-stone-900">Edit Profil & WhatsApp Kasir</h3>
-                <div class="space-y-2 text-left">
-                    <div>
-                        <label class="block text-[11px] font-bold text-stone-700 mb-1">Nama Kasir / Shift</label>
-                        <input type="text" id="kasir-set-nama" placeholder="Nama Kasir" class="form-field">
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-bold text-stone-700 mb-1">Nomor WhatsApp Kasir</label>
-                        <input type="text" id="kasir-set-wa" placeholder="No WA Kasir (62812...)" class="form-field">
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-bold text-stone-700 mb-1">Ganti Foto Profil Kasir</label>
-                        <input type="file" id="kasir-set-foto" accept="image/*" class="text-xs text-stone-600 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:bg-amber-600 file:text-white file:font-bold file:text-[10px]">
-                    </div>
-                </div>
-                <button onclick="adminSimpanProfilKasir()" class="action-btn text-xs py-2.5 bg-amber-600 hover:bg-amber-700 mt-2">Simpan Profil Kasir</button>
-            </div>
-
-            <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3 shadow-sm">
-                <h3 class="font-bold text-xs text-stone-900 flex items-center gap-2"><i class="fas fa-utensils text-amber-600"></i> Kelola Menu & Stok (Sold Out)</h3>
-                <input type="hidden" id="adm-edit-id">
-                <input type="text" id="adm-nama" placeholder="Nama Menu" class="form-field">
-                <div class="grid grid-cols-2 gap-2">
-                    <input type="number" id="adm-harga" placeholder="Harga (Rp)" class="form-field">
-                    <select id="adm-kategori" class="form-field">
-                        <option value="Minuman">Minuman</option>
-                        <option value="Makanan">Makanan</option>
-                        <option value="Cemilan">Cemilan</option>
-                    </select>
-                </div>
-                <input type="file" id="adm-file" accept="image/*" class="text-xs text-stone-600 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:bg-amber-600 file:text-white file:font-bold file:text-[10px]">
-                <p class="text-[10px] text-stone-400">*Maksimal ukuran foto 800KB.</p>
-                <button onclick="adminSimpanMenu()" class="action-btn text-xs py-2.5">Simpan Menu</button>
-
-                <div class="max-h-60 overflow-y-auto mt-2 border border-stone-100 rounded-xl">
-                    <table class="w-full text-left text-xs">
-                        <thead class="bg-stone-50 sticky top-0">
-                            <tr class="text-stone-500 border-b border-stone-200">
-                                <th class="p-2">Foto</th><th class="p-2">Nama</th><th class="p-2">Harga</th><th class="p-2 text-center">Aksi & Stok</th>
-                            </tr>
-                        </thead>
-                        <tbody id="admin-menu-tbody">
-                            <tr><td colspan="4" class="p-3 text-center text-stone-400">Memuat menu...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3 shadow-sm">
-                <h3 class="font-bold text-xs text-stone-900 flex items-center gap-2"><i class="fas fa-cog text-amber-600"></i> Pengaturan Umum Kafe</h3>
-                <input type="text" id="set-metode" placeholder="Metode (Cash, QRIS, BCA)" class="form-field">
-                <input type="text" id="set-rek" placeholder="No Rekening Bank" class="form-field">
-                <input type="text" id="set-promo" placeholder="Running Text / Promo di Beranda" class="form-field">
-                <input type="file" id="set-qris-file" accept="image/*" class="text-xs text-stone-600 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:bg-amber-600 file:text-white file:font-bold file:text-[10px]">
-                <img id="set-qris-prev" class="w-20 h-20 object-contain hidden border border-stone-200 rounded-xl bg-stone-50 p-1 mt-1">
-                <button onclick="adminSimpanPengaturan()" class="action-btn text-xs py-2.5 bg-emerald-600 hover:bg-emerald-700">Simpan Pengaturan</button>
-            </div>
-
-            <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3 shadow-sm">
-                <h3 class="font-bold text-xs text-stone-900 flex items-center gap-2"><i class="fas fa-bell text-amber-600"></i> Pesanan Masuk Live</h3>
-                <div class="overflow-x-auto max-h-80">
-                    <table class="w-full text-left text-xs">
-                        <thead class="bg-stone-50 sticky top-0">
-                            <tr class="text-stone-500 border-b border-stone-200">
-                                <th class="p-2">Waktu / Tipe</th><th class="p-2">Pemesan</th><th class="p-2">Pesanan</th><th class="p-2">Total</th><th class="p-2 text-center">Update</th>
-                            </tr>
-                        </thead>
-                        <tbody id="admin-live-orders-tbody">
-                            <tr><td colspan="5" class="p-4 text-center text-stone-400">Menghubungkan ke Supabase...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+    <!-- Profil -->
+    <section id="profile-page" class="page" hidden>
+     <h2 class="serif mb-4 text-2xl">Profil Saya</h2>
+     <div class="card mb-4 space-y-1">
+      <p id="profile-name" class="font-bold text-lg"></p>
+      <p id="profile-phone" class="muted"></p>
+     </div>
+     <button id="logout" class="soft w-full" type="button">Keluar Akun</button>
     </section>
 
-    <!-- BOTTOM NAVIGATION -->
-    <nav id="bottom-nav" class="nav" hidden>
-        <button type="button" data-target="home-screen" class="active" onclick="switchScreen('home-screen')">
-            <i class="fas fa-home text-lg mb-0.5"></i>
-            <span>Beranda</span>
-        </button>
-        <button type="button" data-target="catalog-screen" onclick="switchScreen('catalog-screen')">
-            <i class="fas fa-book-open text-lg mb-0.5"></i>
-            <span>Produk</span>
-        </button>
-        <button type="button" data-target="orders-screen" onclick="switchScreen('orders-screen')">
-            <i class="fas fa-receipt text-lg mb-0.5"></i>
-            <span>Pesanan</span>
-        </button>
-        <button type="button" data-target="cart-screen" onclick="switchScreen('cart-screen')">
-            <div class="relative">
-                <i class="fas fa-shopping-cart text-lg mb-0.5"></i>
-                <span id="nav-cart-badge" class="absolute -top-1 -right-2 bg-rose-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center hidden">0</span>
-            </div>
-            <span>Keranjang</span>
-        </button>
-        <button type="button" data-target="profile-screen" onclick="switchScreen('profile-screen')">
-            <i class="fas fa-user text-lg mb-0.5"></i>
-            <span>Profil</span>
-        </button>
+    <!-- Navigasi Bawah -->
+    <nav class="nav">
+     <button data-page="home" class="active">Beranda</button>
+     <button data-page="menu">Menu</button>
+     <button data-page="cart">Keranjang</button>
+     <button data-page="orders">Pesanan</button>
+     <button data-page="profile">Profil</button>
     </nav>
+   </div>
+
+   <!-- Area Dashboard Kasir / Kelola Toko -->
+   <section id="manage-page" class="page" hidden>
+    <button id="manage-back" class="soft mb-5" type="button">← Kembali</button>
+    <h2 class="serif mb-2 text-2xl">Dashboard Kasir &amp; Kelola Toko</h2>
+    
+    <!-- Tab Navigasi Kasir -->
+    <div class="flex gap-2 mb-4">
+     <button id="tab-btn-orders" class="action flex-1 text-sm">Pesanan Masuk</button>
+     <button id="tab-btn-catalog" class="soft flex-1 text-sm">Kelola Produk</button>
+     <button id="tab-btn-pay" class="soft flex-1 text-sm">Metode Bayar</button>
+    </div>
+
+    <!-- Panel 1: Live Pesanan Masuk (Realtime + Audio Alarm + Cetak Struk) -->
+    <div id="cashier-orders-panel" class="space-y-3">
+     <h3 class="serif text-xl">Daftar Pesanan Masuk (Realtime)</h3>
+     <div id="cashier-orders-list" class="space-y-3"></div>
+    </div>
+
+    <!-- Panel 2: Tambah Produk & Upload Otomatis ke Supabase Bucket -->
+    <form id="menu-form" class="card space-y-3" hidden>
+     <h3 class="serif text-xl">Tambah Produk Marketplace</h3>
+     <label class="block font-bold">Nama Menu</label>
+     <input id="manage-menu-name" class="field" required>
+     <label class="block font-bold">Harga (Rp)</label>
+     <input id="manage-menu-price" class="field" type="number" required>
+     <label class="block font-bold">Kategori</label>
+     <select id="manage-menu-category" class="field"><option>Kopi</option><option>Non-kopi</option><option>Makanan</option></select>
+     <label class="block font-bold">Foto Produk</label>
+     <input id="manage-menu-file" type="file" accept="image/*" class="field bg-stone-50">
+     <button class="action w-full mt-2" type="submit">Simpan Produk ke Cloud</button>
+    </form>
+
+    <!-- Panel 3: Tambah Metode Bayar & QRIS -->
+    <form id="payment-form" class="card space-y-3" hidden>
+     <h3 class="serif text-xl">Tambah Pembayaran &amp; QRIS</h3>
+     <label class="block font-bold">Nama Metode (Contoh: QRIS / BCA)</label>
+     <input id="manage-pay-name" class="field" required>
+     <label class="block font-bold">Info Rekening / Instruksi</label>
+     <input id="manage-pay-acc" class="field">
+     <label class="block font-bold">Upload Barcode QRIS / Gambar</label>
+     <input id="manage-pay-file" type="file" accept="image/*" class="field bg-stone-50">
+     <button class="action w-full mt-2" type="submit">Simpan Metode Pembayaran</button>
+    </form>
+   </section>
   </main>
+
+  <!-- Area Tersembunyi untuk Cetak Struk / Nota Thermal -->
+  <div id="print-area" hidden style="padding:20px; font-family:monospace; background:white; color:black;">
+   <h2 style="text-align:center; font-weight:bold;">ARUMI KAFE &amp; MARKETPLACE</h2>
+   <p style="text-align:center;">Jl. Kopi Nusantara No.88</p>
+   <hr style="border-style:dashed;">
+   <p id="print-meta"></p>
+   <hr style="border-style:dashed;">
+   <div id="print-items"></div>
+   <hr style="border-style:dashed;">
+   <p id="print-total" style="font-weight:bold; text-align:right;"></p>
+   <p style="text-align:center; margin-top:20px;">*** TERIMA KASIH ***</p>
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. KONFIGURASI SUPABASE ANDA
+    // ==========================================
+    const SUPABASE_URL = 'https://yyteszpzfdlxkwuiftvz.supabase.co/rest/v1/';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5dGVzenB6ZmRseGt3dWlmdHZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4OTI4MDUsImV4cCI6MjEwOTQ2ODgwNX0.kf5k6qvctPk382gNTqA21v1FEEk9qL5uMbQOeoiMzDA';
+    
+    // Inisialisasi Supabase Client
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const BUCKET_NAME = 'arumi-assets';
+
+    const $ = id => document.getElementById(id);
+    const money = val => 'Rp' + Number(val).toLocaleString('id-ID');
+
+    let dbProducts = [];
+    let dbPayments = [];
+    let dbOrders = [];
+    let currentCustomer = null;
+    let currentPage = 'auth';
+    let selectedCategory = 'Semua';
+    let detailItem = null;
+    const cart = new Map();
+
+    // Fungsi Notifikasi Audio Saat Pesanan Masuk (Web Audio API Beep)
+    function playBeep() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = 587.33; // Nada D5
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
+      } catch(e) { console.log('Audio error:', e); }
+    }
+
+    // Buat Bucket Otomatis di Supabase saat aplikasi dimuat
+    async function initSupabaseStorage() {
+      try {
+        const { data: buckets } = await supabaseClient.storage.listBuckets();
+        const exists = buckets?.find(b => b.name === BUCKET_NAME);
+        if (!exists) {
+          await supabaseClient.storage.createBucket(BUCKET_NAME, { public: true });
+        }
+      } catch (err) {
+        console.error('Storage bucket check error:', err);
+      }
+    }
+
+    // Upload File ke Supabase Bucket Secara Otomatis
+    async function uploadToBucket(file) {
+      if (!file) return '';
+      const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+      const { data, error } = await supabaseClient.storage.from(BUCKET_NAME).upload(fileName, file);
+      if (error) {
+        alert('Gagal upload gambar: ' + error.message);
+        return '';
+      }
+      const { data: publicURL } = supabaseClient.storage.from(BUCKET_NAME).getPublicUrl(fileName);
+      return publicURL.publicUrl;
+    }
+
+    // Ambil Data dari Supabase Database
+    async function fetchAppData() {
+      const [prodRes, payRes, ordRes] = await Promise.all([
+        supabaseClient.from('products').select('*').order('created_at', { ascending: false }),
+        supabaseClient.from('payment_methods').select('*').order('created_at', { ascending: false }),
+        supabaseClient.from('orders').select('*').order('created_at', { ascending: false })
+      ]);
+
+      if (prodRes.data) dbProducts = prodRes.data;
+      if (payRes.data) dbPayments = payRes.data;
+      if (ordRes.data) dbOrders = ordRes.data;
+
+      renderMenu();
+      renderOrders();
+      renderCashierOrders();
+    }
+
+    // Setup Realtime Subscription untuk Kasir
+    function setupRealtimeListener() {
+      supabaseClient
+        .channel('public:orders')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, payload => {
+          dbOrders.unshift(payload.new);
+          playBeep();
+          renderCashierOrders();
+          if (currentCustomer) renderOrders();
+          message('Ada pesanan baru masuk! 🔔');
+        })
+        .subscribe();
+    }
+
+    function message(text) {
+      $('message').textContent = text;
+      $('message').hidden = false;
+      setTimeout(() => { $('message').hidden = true; }, 4000);
+    }
+
+    function showPage(name) {
+      currentPage = name;
+      $('auth-page').hidden = name !== 'auth';
+      $('manage-page').hidden = name !== 'manage';
+      $('customer-area').hidden = !currentCustomer || name === 'auth' || name === 'manage';
+      
+      const customerPages = $('customer-area').querySelectorAll('section[id$="-page"]');
+      customerPages.forEach(p => p.hidden = p.id !== name + '-page');
+
+      document.querySelectorAll('[data-page]').forEach(b => b.classList.toggle('active', b.dataset.page === name));
+
+      if (name === 'cart') renderCart();
+      if (name === 'checkout') renderCheckout();
+      if (name === 'orders') renderOrders();
+      window.scrollTo(0, 0);
+    }
+
+    // Render Kategori
+    function renderCategories(id) {
+      const node = $(id);
+      node.replaceChildren();
+      for (const cat of ['Semua', 'Kopi', 'Non-kopi', 'Makanan']) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'soft' + (selectedCategory === cat ? ' active' : '');
+        btn.textContent = cat;
+        btn.onclick = () => { selectedCategory = cat; renderMenu(); };
+        node.append(btn);
+      }
+    }
+
+    function addItem(item) {
+      const old = cart.get(item.id);
+      cart.set(item.id, {...item, qty: (old?.qty || 0) + 1});
+      message(item.name + ' ditambahkan ke keranjang.');
+    }
+
+    function productCard(item) {
+      const card = document.createElement('article');
+      card.className = 'card flex flex-col justify-between gap-3';
+      
+      const content = document.createElement('div');
+      if (item.image_url) {
+        const img = document.createElement('img');
+        img.src = item.image_url;
+        img.alt = item.name;
+        img.className = 'w-full h-28 object-cover rounded-xl mb-3';
+        content.append(img);
+      }
+      const tag = document.createElement('p');
+      tag.className = 'muted text-xs mb-2';
+      tag.textContent = item.category;
+
+      const title = document.createElement('h3');
+      title.className = 'font-bold leading-snug';
+      title.textContent = item.name;
+
+      const price = document.createElement('p');
+      price.className = 'muted mt-2';
+      price.textContent = money(item.price);
+
+      content.append(tag, title, price);
+
+      const actions = document.createElement('div');
+      actions.className = 'flex flex-wrap gap-2';
+
+      const orderBtn = document.createElement('button');
+      orderBtn.type = 'button';
+      orderBtn.className = 'action text-sm flex-1';
+      orderBtn.textContent = 'Pesan';
+      orderBtn.onclick = () => addItem(item);
+
+      const detailBtn = document.createElement('button');
+      detailBtn.type = 'button';
+      detailBtn.className = 'soft text-sm flex-1';
+      detailBtn.textContent = 'Detail';
+      detailBtn.onclick = () => {
+        detailItem = item;
+        $('detail-image').src = item.image_url || '';
+        $('detail-image').hidden = !item.image_url;
+        $('detail-heading').textContent = item.name;
+        $('detail-category').textContent = item.category;
+        $('detail-description').textContent = item.description || 'Sajian spesial kafe kami.';
+        $('detail-price').textContent = money(item.price);
+        showPage('detail');
+      };
+
+      actions.append(orderBtn, detailBtn);
+      card.append(content, actions);
+      return card;
+    }
+
+    function renderMenu() {
+      renderCategories('home-categories');
+      renderCategories('menu-categories');
+
+      for (const [listId, searchId, popularOnly] of [['popular-list', 'home-search', true], ['menu-list', 'menu-search', false]]) {
+        const list = $(listId);
+        const q = $(searchId).value.trim().toLowerCase();
+        const matching = dbProducts.filter(item => (!popularOnly || item.category === 'Kopi') && (selectedCategory === 'Semua' || item.category === selectedCategory) && item.name.toLowerCase().includes(q));
+        
+        list.replaceChildren(...matching.map(productCard));
+        if (!matching.length) {
+          const p = document.createElement('p');
+          p.className = 'muted col-span-2';
+          p.textContent = 'Tidak ada produk ditemukan.';
+          list.append(p);
+        }
+      }
+    }
+
+    function totalCart() {
+      return [...cart.values()].reduce((sum, i) => sum + i.price * i.qty, 0);
+    }
+
+    function renderCart() {
+      $('cart-empty').hidden = cart.size > 0;
+      $('cart-actions').hidden = cart.size === 0;
+      $('cart-total').textContent = 'Total: ' + money(totalCart());
+
+      const list = $('cart-list');
+      list.replaceChildren();
+
+      for (const item of cart.values()) {
+        const card = document.createElement('article');
+        card.className = 'card flex justify-between gap-3 items-start';
+        const info = document.createElement('div');
+        info.innerHTML = `<h3 class="font-bold">${item.name}</h3><p class="muted text-sm">${item.qty} × ${money(item.price)}</p>`;
+        
+        const rem = document.createElement('button');
+        rem.type = 'button';
+        rem.className = 'soft text-sm';
+        rem.textContent = 'Hapus';
+        rem.onclick = () => { cart.delete(item.id); renderCart(); };
+
+        card.append(info, rem);
+        list.append(card);
+      }
+    }
+
+    function renderCheckout() {
+      if (!cart.size) { showPage('cart'); return; }
+      $('buyer').value = currentCustomer.name;
+      $('buyer-phone').value = currentCustomer.phone;
+      $('checkout-total').textContent = 'Total: ' + money(totalCart());
+
+      const options = $('payment-options');
+      options.replaceChildren();
+      $('payment-detail-card').hidden = true;
+
+      const activePay = dbPayments.filter(p => p.is_active !== false);
+      for (const p of activePay) {
+        const label = document.createElement('label');
+        label.className = 'card flex gap-2 items-center cursor-pointer';
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'payment';
+        radio.value = p.name;
+        radio.required = true;
+        
+        radio.onchange = () => {
+          $('payment-detail-card').hidden = false;
+          $('payment-account-text').textContent = p.account_info || 'Silakan transfer sesuai total tagihan.';
+          if (p.qr_url) {
+            $('payment-qr-img').src = p.qr_url;
+            $('qr-wrapper').hidden = false;
+          } else {
+            $('qr-wrapper').hidden = true;
+          }
+        };
+
+        label.append(radio, document.createTextNode(p.name));
+        options.append(label);
+      }
+    }
+
+    // Histori Pesanan Pelanggan
+    function renderOrders() {
+      const list = $('orders-list');
+      list.replaceChildren();
+      const myOrders = dbOrders.filter(o => o.customer_phone === currentCustomer?.phone);
+
+      for (const o of myOrders) {
+        const card = document.createElement('article');
+        card.className = 'card space-y-2';
+        card.innerHTML = `<h3 class="font-bold">Pesanan #${o.code}</h3>
+          <p class="text-sm whitespace-pre-line">${JSON.parse(JSON.stringify(o.items)).join('\n')}</p>
+          <p class="muted text-xs">Status: <span class="font-bold text-[#ba812f]">${o.status}</span></p>
+          <p class="text-xs muted">Total: ${money(o.total_amount)} (${o.payment_method})</p>`;
+        list.append(card);
+      }
+      $('orders-empty').hidden = myOrders.length > 0;
+    }
+
+    // Dashboard Kasir: Kelola Pesanan Masuk + Ubah Status + Cetak Struk
+    function renderCashierOrders() {
+      const list = $('cashier-orders-list');
+      list.replaceChildren();
+
+      if (!dbOrders.length) {
+        list.innerHTML = '<p class="muted text-sm">Belum ada pesanan masuk.</p>';
+        return;
+      }
+
+      for (const o of dbOrders) {
+        const card = document.createElement('article');
+        card.className = 'card space-y-2 border-l-4 border-[#ba812f]';
+        card.innerHTML = `
+          <div class="flex justify-between items-start">
+            <div>
+              <h3 class="font-bold">#${o.code} - ${o.customer_name} (${o.customer_phone})</h3>
+              <p class="text-xs muted">Ambil: ${o.pickup_time} | Bayar: ${o.payment_method}</p>
+            </div>
+            <span class="text-xs font-bold px-2 py-1 bg-amber-100 text-amber-800 rounded-full">${o.status}</span>
+          </div>
+          <p class="text-sm whitespace-pre-line bg-stone-50 p-2 rounded">${JSON.parse(JSON.stringify(o.items)).join('\n')}</p>
+          <div class="flex flex-wrap gap-2 pt-2">
+            <button class="soft text-xs btn-status" data-id="${o.id}" data-status="Diproses">Proses</button>
+            <button class="soft text-xs btn-status" data-id="${o.id}" data-status="Selesai / Siap Diambil">Selesai</button>
+            <button class="action text-xs btn-print" data-code="${o.code}">Cetak Struk</button>
+          </div>
+        `;
+        list.append(card);
+      }
+
+      // Tombol Ubah Status Pesanan
+      list.querySelectorAll('.btn-status').forEach(btn => {
+        btn.onclick = async () => {
+          const id = btn.dataset.id;
+          const status = btn.dataset.status;
+          const { error } = await supabaseClient.from('orders').update({ status }).eq('id', id);
+          if (!error) {
+            message('Status pesanan diperbarui.');
+            fetchAppData();
+          }
+        };
+      });
+
+      // Tombol Cetak Struk / Nota Thermal
+      list.querySelectorAll('.btn-print').forEach(btn => {
+        btn.onclick = () => {
+          const code = btn.dataset.code;
+          const order = dbOrders.find(o => o.code === code);
+          if (!order) return;
+
+          $('print-meta').innerHTML = `No. Pesanan: #${order.code}<br>Pemesan: ${order.customer_name}<br>Waktu: ${new Date(order.created_at).toLocaleString('id-ID')}`;
+          $('print-items').innerHTML = (order.items || []).map(i => `<div>• ${i}</div>`).join('');
+          $('print-total').textContent = `TOTAL: ${money(order.total_amount)}`;
+
+          window.print();
+        };
+      });
+    }
+
+    // --- EVENT HANDLERS ---
+    $('show-login').onclick = () => { $('login-form').hidden = false; $('register-form').hidden = true; };
+    $('show-register').onclick = () => { $('login-form').hidden = true; $('register-form').hidden = false; };
+    $('admin-entry').onclick = () => showPage('manage');
+    $('manage-back').onclick = () => showPage(currentCustomer ? 'home' : 'auth');
+    $('home-search').oninput = renderMenu;
+    $('menu-search').oninput = renderMenu;
+    $('detail-back').onclick = () => showPage('menu');
+    $('detail-order').onclick = () => { if (detailItem) addItem(detailItem); };
+
+    document.querySelectorAll('[data-page]').forEach(b => b.onclick = () => showPage(b.dataset.page));
+
+    // Navigasi Tab Kasir
+    $('tab-btn-orders').onclick = () => {
+      $('cashier-orders-panel').hidden = false;
+      $('menu-form').hidden = true;
+      $('payment-form').hidden = true;
+    };
+    $('tab-btn-catalog').onclick = () => {
+      $('cashier-orders-panel').hidden = true;
+      $('menu-form').hidden = false;
+      $('payment-form').hidden = true;
+    };
+    $('tab-btn-pay').onclick = () => {
+      $('cashier-orders-panel').hidden = true;
+      $('menu-form').hidden = true;
+      $('payment-form').hidden = false;
+    };
+
+    // Auth Login Supabase
+    $('login-form').onsubmit = async e => {
+      e.preventDefault();
+      const phone = $('login-phone').value.trim();
+      const { data, error } = await supabaseClient.from('profiles').select('*').eq('phone', phone).single();
+      if (error || !data) return message('Nomor WhatsApp belum terdaftar. Silakan daftar.');
+      currentCustomer = data;
+      $('profile-name').textContent = data.name;
+      $('profile-phone').textContent = 'WhatsApp: ' + data.phone;
+      showPage('home');
+      message('Berhasil masuk.');
+    };
+
+    // Auth Register Supabase
+    $('register-form').onsubmit = async e => {
+      e.preventDefault();
+      const name = $('register-name').value.trim();
+      const phone = $('register-phone').value.trim();
+      const { data, error } = await supabaseClient.from('profiles').insert([{ name, phone, role: 'customer' }]).select().single();
+      if (error) return message('Gagal daftar: ' + error.message);
+      currentCustomer = data;
+      $('profile-name').textContent = data.name;
+      $('profile-phone').textContent = 'WhatsApp: ' + data.phone;
+      showPage('home');
+      message('Pendaftaran akun berhasil.');
+    };
+
+    $('logout').onclick = () => {
+      currentCustomer = null;
+      cart.clear();
+      showPage('auth');
+      message('Keluar dari akun.');
+    };
+
+    // Tambah Produk + Upload Bucket Otomatis
+    $('menu-form').onsubmit = async e => {
+      e.preventDefault();
+      const name = $('manage-menu-name').value.trim();
+      const price = Number($('manage-menu-price').value);
+      const category = $('manage-menu-category').value;
+      const fileInput = $('manage-menu-file').files[0];
+
+      message('Mengunggah gambar ke cloud storage...');
+      const imageUrl = await uploadToBucket(fileInput);
+
+      const { error } = await supabaseClient.from('products').insert([{ name, price, category, image_url: imageUrl, description: 'Produk marketplace baru.' }]);
+      if (error) return message('Gagal simpan produk: ' + error.message);
+
+      e.target.reset();
+      fetchAppData();
+      message('Produk berhasil disimpan ke Supabase!');
+    };
+
+    // Tambah Metode Pembayaran/QRIS + Upload Bucket Otomatis
+    $('payment-form').onsubmit = async e => {
+      e.preventDefault();
+      const name = $('manage-pay-name').value.trim();
+      const accountInfo = $('manage-pay-acc').value.trim();
+      const fileInput = $('manage-pay-file').files[0];
+
+      message('Mengunggah QRIS ke cloud storage...');
+      const qrUrl = await uploadToBucket(fileInput);
+
+      const { error } = await supabaseClient.from('payment_methods').insert([{ name, account_info: accountInfo, qr_url: qrUrl }]);
+      if (error) return message('Gagal simpan pembayaran: ' + error.message);
+
+      e.target.reset();
+      fetchAppData();
+      message('Metode pembayaran berhasil disimpan!');
+    };
+
+    // Proses Checkout & Simpan ke DB Supabase
+    $('checkout-form').onsubmit = async e => {
+      e.preventDefault();
+      if (!cart.size || !currentCustomer) return;
+      const chosen = document.querySelector('input[name="payment"]:checked');
+      if (!chosen) return message('Pilih metode pembayaran.');
+
+      const buyer = $('buyer').value.trim();
+      const number = $('buyer-phone').value.trim();
+      const items = [...cart.values()].map(x => `${x.qty}× ${x.name}`);
+      const code = String(Date.now()).slice(-8);
+      const paymentMethod = chosen.value;
+      const totalAmount = totalCart();
+
+      const newOrder = {
+        code,
+        customer_name: buyer,
+        customer_phone: number,
+        items,
+        total_amount: totalAmount,
+        pickup_time: $('pickup').value,
+        payment_method: paymentMethod,
+        status: 'Menunggu Konfirmasi Kasir'
+      };
+
+      const { error } = await supabaseClient.from('orders').insert([newOrder]);
+      if (error) return message('Gagal membuat pesanan: ' + error.message);
+
+      cart.clear();
+      showPage('orders');
+      fetchAppData();
+      message('Pesanan berhasil dibuat dan dikirim ke sistem kasir!');
+    };
+
+    // Inisialisasi awal aplikasi
+    async function initApp() {
+      await initSupabaseStorage();
+      await fetchAppData();
+      setupRealtimeListener();
+    }
+    initApp();
+  </script>
 </body>
 </html>
