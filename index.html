@@ -505,7 +505,7 @@
             loadPaymentConfigToCart();
         };
 
-        window.submitCheckoutOrder = async function() {
+         window.submitCheckoutOrder = async function() {
             let nama = document.getElementById('cart-nama-pemesan').value.trim();
             let metode = document.getElementById('cart-metode-bayar').value;
 
@@ -513,39 +513,42 @@
             if(Object.keys(cartPelanggan).length === 0) { alert('Keranjang masih kosong!'); return; }
 
             let total = Object.values(cartPelanggan).reduce((s, i) => s + (i.harga * i.qty), 0);
-            let activeWaKasir = "628123456789";
+            
+            // AMBIL NOMOR WA DARI KASIR YANG SEDANG LOGIN (Sesuai akun kasir 1 / kasir 2)
+            let activeWaKasir = activeKasirAkun && activeKasirAkun.waKasir ? activeKasirAkun.waKasir : "628123456789";
+            
+            // Bersihkan nomor dari spasi, tanda tambah, atau strip agar formatnya valid di URL WhatsApp
+            activeWaKasir = activeWaKasir.replace(/[^0-9]/g, '');
 
             let newOrder = {
                 idPesanan: 'MLK-' + Date.now().toString().slice(-6),
                 waktu: new Date().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'}) + ' ' + new Date().toLocaleDateString('id-ID'),
                 timestamp: Date.now(),
                 nama, metodeBayar: metode, items: {...cartPelanggan}, total,
-                status: 'Menunggu Konfirmasi' // Status awal pesanan
+                status: 'Menunggu Konfirmasi',
+                kasirTujuan: activeKasirAkun ? activeKasirAkun.id : 'umum'
             };
 
             try {
                 await addDoc(collection(db, "pesanan_melky"), newOrder);
-                
-                getDocs(collection(db, "pengaturan_melky")).then((snap) => {
-                    snap.forEach(d => { if(d.data().waKasir) activeWaKasir = d.data().waKasir; });
 
-                    let waText = `*KAFE MELKY - PESANAN BARU*\nPelanggan: *${nama}*\nBayar: *${metode}*\n\n*Rincian:*\n`;
-                    Object.values(cartPelanggan).forEach(i => {
-                        waText += `- ${i.nama} [${i.suhu}${i.catatan?', '+i.catatan:''}] (${i.qty}x) : Rp ${(i.harga*i.qty).toLocaleString('id-ID')}\n`;
-                    });
-                    waText += `\n*TOTAL: Rp ${total.toLocaleString('id-ID')}*`;
-
-                    if(confirm("Pesanan berhasil dikirim ke Kasir! Ingin kirim juga via WhatsApp?")) {
-                        window.open(`https://wa.me/${activeWaKasir}?text=${encodeURIComponent(waText)}`, '_blank');
-                    }
-
-                    cartPelanggan = {};
-                    switchScreen('orders-screen');
+                let waText = `*KAFE MELKY - PESANAN BARU*\nPelanggan: *${nama}*\nBayar: *${metode}*\n\n*Rincian:*\n`;
+                Object.values(cartPelanggan).forEach(i => {
+                    waText += `- ${i.nama} [${i.suhu}${i.catatan?', '+i.catatan:''}] (${i.qty}x) : Rp ${(i.harga*i.qty).toLocaleString('id-ID')}\n`;
                 });
+                waText += `\n*TOTAL: Rp ${total.toLocaleString('id-ID')}*`;
+
+                if(confirm("Pesanan berhasil dikirim ke Kasir! Ingin kirim juga via WhatsApp?")) {
+                    window.open(`https://wa.me/${activeWaKasir}?text=${encodeURIComponent(waText)}`, '_blank');
+                }
+
+                cartPelanggan = {};
+                switchScreen('orders-screen');
             } catch(e) {
                 alert("Gagal mengirim pesanan.");
             }
         };
+
 
         // --- RIWAYAT PESANAN DENGAN STATUS PROGRESS REALTIME ---
         function loadOrdersRealtime() {
