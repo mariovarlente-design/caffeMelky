@@ -7,7 +7,7 @@
   <!-- Konfigurasi PWA Manifest Inline -->
   <link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22Arumi%20Kafe%22%2C%22short_name%22%3A%22ArumiKafe%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23e6cbb4%22%2C%22theme_color%22%3A%22%23ba812f%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fimages.unsplash.com%2Fphoto-1501339847302-ac426a4a7cbb%3Fauto%3Dformat%26fit%3Dcrop%26w%3D192%26q%3D80%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fjpeg%22%7D%5D%7D">
   <meta name="theme-color" content="#ba812f">
-  
+
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Fraunces:wght@600;700&amp;display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <!-- Supabase JS Client Library -->
@@ -82,7 +82,7 @@
      <button class="action w-full" type="submit">Daftar Sekarang</button>
     </form>
 
-    <!-- Tombol Instal PWA (Hanya muncul jika browser mendukung instalasi aplikasi) -->
+    <!-- Tombol Instal PWA -->
     <button id="install-pwa-btn" class="action w-full mt-6 bg-stone-700 hover:bg-stone-800" type="button" hidden>
       📥 Instal Aplikasi ke Beranda HP
     </button>
@@ -272,7 +272,7 @@
     // ==========================================
     const SUPABASE_URL = 'https://yyteszpzfdlxkwuiftvz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5dGVzenB6ZmRseGt3dWlmdHZ6In0.kf5k6qvctPk382gNTqA21v1FEEk9qL5uMbQOeoiMzDA';
-    
+
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const BUCKET_NAME = 'arumi-assets';
 
@@ -293,7 +293,6 @@
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       deferredPrompt = e;
-      // Tampilkan tombol instal di halaman login
       $('install-pwa-btn').hidden = false;
     });
 
@@ -337,27 +336,19 @@
       } catch(e) {}
     }
 
-    async function initSupabaseStorage() {
-      try {
-        const { data: buckets } = await supabaseClient.storage.listBuckets();
-        const exists = buckets?.find(b => b.name === BUCKET_NAME);
-        if (!exists) {
-          await supabaseClient.storage.createBucket(BUCKET_NAME, { public: true });
-        }
-      } catch (err) {}
-    }
-
-    // Ganti fungsi upload lama dengan fungsi Base64 ini agar langsung sukses tanpa error storage
+    // Konversi Gambar ke Base64 (Aman, Tanpa Error Storage Supabase)
     async function uploadToBucket(file) {
       if (!file) return '';
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result); // Menghasilkan string Base64 gambar
+        reader.onload = () => resolve(reader.result);
         reader.onerror = error => reject(error);
         reader.readAsDataURL(file);
       });
     }
 
+    // Ambil Data dari Supabase Database (Diperbaiki: Kurung kurawal sudah lengkap)
+    async function fetchAppData() {
       const [prodRes, payRes, ordRes] = await Promise.all([
         supabaseClient.from('products').select('*').order('created_at', { ascending: false }),
         supabaseClient.from('payment_methods').select('*').order('created_at', { ascending: false }),
@@ -730,7 +721,7 @@
       const category = $('manage-menu-category').value;
       const fileInput = $('manage-menu-file').files[0];
 
-      message('Mengunggah gambar ke cloud storage...');
+      message('Memproses gambar...');
       const imageUrl = await uploadToBucket(fileInput);
 
       const { error } = await supabaseClient.from('products').insert([{ name, price, category, image_url: imageUrl, description: 'Produk marketplace baru.' }]);
@@ -747,7 +738,7 @@
       const accountInfo = $('manage-pay-acc').value.trim();
       const fileInput = $('manage-pay-file').files[0];
 
-      message('Mengunggah QRIS ke cloud storage...');
+      message('Memproses QRIS...');
       const qrUrl = await uploadToBucket(fileInput);
 
       const { error } = await supabaseClient.from('payment_methods').insert([{ name, account_info: accountInfo, qr_url: qrUrl }]);
@@ -792,7 +783,6 @@
     };
 
     async function initApp() {
-      await initSupabaseStorage();
       await fetchAppData();
       setupRealtimeListener();
     }
