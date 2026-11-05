@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Arumi Kafe - Marketplace Online & POS</title>
+  <!-- Konfigurasi PWA Manifest Inline -->
+  <link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22Arumi%20Kafe%22%2C%22short_name%22%3A%22ArumiKafe%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23e6cbb4%22%2C%22theme_color%22%3A%22%23ba812f%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fimages.unsplash.com%2Fphoto-1501339847302-ac426a4a7cbb%3Fauto%3Dformat%26fit%3Dcrop%26w%3D192%26q%3D80%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fjpeg%22%7D%5D%7D">
+  <meta name="theme-color" content="#ba812f">
+  
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Fraunces:wght@600;700&amp;display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <!-- Supabase JS Client Library -->
@@ -46,7 +50,8 @@
    <header class="relative h-52 overflow-hidden bg-stone-800 shrink-0">
     <img class="w-full h-full object-cover opacity-75" loading="lazy" src="https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=800&q=80" alt="Cafe">
     <div class="absolute inset-0 bg-gradient-to-t from-stone-950/70 to-transparent"></div>
-    <div class="absolute bottom-5 left-6 text-white">
+    <!-- Secret Tap: Ketuk 3x untuk buka Dashboard Kasir -->
+    <div id="secret-trigger" class="absolute bottom-5 left-6 text-white cursor-pointer select-none">
      <p class="uppercase tracking-widest font-bold text-sm">marketplace &amp; cafe</p>
      <h1 class="serif mt-1 text-3xl font-bold">Arumi Kafe</h1>
     </div>
@@ -76,7 +81,11 @@
      <input id="register-phone" class="field" required inputmode="tel" placeholder="08xxxxxxxxxx">
      <button class="action w-full" type="submit">Daftar Sekarang</button>
     </form>
-    <button id="admin-entry" class="soft w-full mt-6" type="button">Dashboard Kasir &amp; Kelola Toko</button>
+
+    <!-- Tombol Instal PWA (Hanya muncul jika browser mendukung instalasi aplikasi) -->
+    <button id="install-pwa-btn" class="action w-full mt-6 bg-stone-700 hover:bg-stone-800" type="button" hidden>
+      📥 Instal Aplikasi ke Beranda HP
+    </button>
    </section>
 
    <!-- Area Pelanggan Marketplace -->
@@ -188,7 +197,7 @@
     <button id="manage-back" class="soft mb-5" type="button">← Kembali</button>
     <h2 class="serif mb-2 text-2xl">Dashboard Kasir &amp; Kelola Toko</h2>
     
-    <!-- Tab Navigasi Kasir (Termasuk Laporan Penjualan) -->
+    <!-- Tab Navigasi Kasir -->
     <div class="grid grid-cols-4 gap-1 mb-4">
      <button id="tab-btn-orders" class="action text-xs py-2 px-1 rounded-lg">Pesanan</button>
      <button id="tab-btn-reports" class="soft text-xs py-2 px-1 rounded-lg">Laporan</button>
@@ -196,13 +205,13 @@
      <button id="tab-btn-pay" class="soft text-xs py-2 px-1 rounded-lg">Bayar</button>
     </div>
 
-    <!-- Panel 1: Live Pesanan Masuk (Realtime + Audio Alarm + Tombol WA & Cetak Struk) -->
+    <!-- Panel 1: Live Pesanan Masuk -->
     <div id="cashier-orders-panel" class="space-y-3">
      <h3 class="serif text-xl">Daftar Pesanan Masuk</h3>
      <div id="cashier-orders-list" class="space-y-3"></div>
     </div>
 
-    <!-- Panel 1B: Laporan Penjualan / Omzet Harian -->
+    <!-- Panel 1B: Laporan Penjualan -->
     <div id="cashier-reports-panel" class="space-y-3" hidden>
      <h3 class="serif text-xl">Laporan Penjualan</h3>
      <div class="card bg-amber-50 border-amber-200">
@@ -216,7 +225,7 @@
      </div>
     </div>
 
-    <!-- Panel 2: Tambah Produk & Upload Otomatis ke Supabase Bucket -->
+    <!-- Panel 2: Tambah Produk -->
     <form id="menu-form" class="card space-y-3" hidden>
      <h3 class="serif text-xl">Tambah Produk Marketplace</h3>
      <label class="block font-bold">Nama Menu</label>
@@ -244,7 +253,7 @@
    </section>
   </main>
 
-  <!-- Area Tersembunyi untuk Cetak Struk / Nota Thermal -->
+  <!-- Area Tersembunyi Cetak Struk -->
   <div id="print-area" hidden style="padding:20px; font-family:monospace; background:white; color:black;">
    <h2 style="text-align:center; font-weight:bold;">ARUMI KAFE &amp; MARKETPLACE</h2>
    <p style="text-align:center;">Jl. Kopi Nusantara No.88</p>
@@ -262,9 +271,8 @@
     // 1. KONFIGURASI SUPABASE ANDA
     // ==========================================
     const SUPABASE_URL = 'https://yyteszpzfdlxkwuiftvz.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5dGVzenB6ZmRseGt3dWlmdHZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4OTI4MDUsImV4cCI6MjEwOTQ2ODgwNX0.kf5k6qvctPk382gNTqA21v1FEEk9qL5uMbQOeoiMzDA';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5dGVzenB6ZmRseGt3dWlmdHZ6In0.kf5k6qvctPk382gNTqA21v1FEEk9qL5uMbQOeoiMzDA';
     
-    // Inisialisasi Supabase Client
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const BUCKET_NAME = 'arumi-assets';
 
@@ -280,7 +288,40 @@
     let detailItem = null;
     const cart = new Map();
 
-    // Fungsi Notifikasi Audio Saat Pesanan Masuk (Web Audio API Beep)
+    // Logika PWA Install Prompt
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      // Tampilkan tombol instal di halaman login
+      $('install-pwa-btn').hidden = false;
+    });
+
+    $('install-pwa-btn').onclick = async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        $('install-pwa-btn').hidden = true;
+      }
+      deferredPrompt = null;
+    };
+
+    // Logika Secret Tap (Ketuk Header 3x untuk buka Dashboard Kasir)
+    let tapCount = 0;
+    let tapTimer = null;
+    $('secret-trigger').onclick = () => {
+      tapCount++;
+      clearTimeout(tapTimer);
+      if (tapCount === 3) {
+        tapCount = 0;
+        showPage('manage');
+        message('Mode Kasir Terbuka 🔐');
+      } else {
+        tapTimer = setTimeout(() => { tapCount = 0; }, 800);
+      }
+    };
+
     function playBeep() {
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -289,14 +330,13 @@
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.type = 'sine';
-        osc.frequency.value = 587.33; // Nada D5
+        osc.frequency.value = 587.33;
         gain.gain.setValueAtTime(0.3, ctx.currentTime);
         osc.start();
         osc.stop(ctx.currentTime + 0.3);
-      } catch(e) { console.log('Audio error:', e); }
+      } catch(e) {}
     }
 
-    // Buat Bucket Otomatis di Supabase saat aplikasi dimuat
     async function initSupabaseStorage() {
       try {
         const { data: buckets } = await supabaseClient.storage.listBuckets();
@@ -304,12 +344,9 @@
         if (!exists) {
           await supabaseClient.storage.createBucket(BUCKET_NAME, { public: true });
         }
-      } catch (err) {
-        console.error('Storage bucket check error:', err);
-      }
+      } catch (err) {}
     }
 
-    // Upload File ke Supabase Bucket Secara Otomatis
     async function uploadToBucket(file) {
       if (!file) return '';
       const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
@@ -322,7 +359,6 @@
       return publicURL.publicUrl;
     }
 
-    // Ambil Data dari Supabase Database
     async function fetchAppData() {
       const [prodRes, payRes, ordRes] = await Promise.all([
         supabaseClient.from('products').select('*').order('created_at', { ascending: false }),
@@ -340,7 +376,6 @@
       renderReports();
     }
 
-    // Setup Realtime Subscription untuk Kasir
     function setupRealtimeListener() {
       supabaseClient
         .channel('public:orders')
@@ -536,7 +571,6 @@
       }
     }
 
-    // Histori Pesanan Pelanggan
     function renderOrders() {
       const list = $('orders-list');
       list.replaceChildren();
@@ -554,7 +588,6 @@
       $('orders-empty').hidden = myOrders.length > 0;
     }
 
-    // Dashboard Kasir: Kelola Pesanan Masuk + Tombol WhatsApp ke Pelanggan + Cetak Struk
     function renderCashierOrders() {
       const list = $('cashier-orders-list');
       list.replaceChildren();
@@ -591,7 +624,6 @@
         list.append(card);
       }
 
-      // Tombol Ubah Status Pesanan
       list.querySelectorAll('.btn-status').forEach(btn => {
         btn.onclick = async () => {
           const id = btn.dataset.id;
@@ -604,7 +636,6 @@
         };
       });
 
-      // Tombol Cetak Struk
       list.querySelectorAll('.btn-print').forEach(btn => {
         btn.onclick = () => {
           const code = btn.dataset.code;
@@ -620,7 +651,6 @@
       });
     }
 
-    // Render Laporan Penjualan Harian
     function renderReports() {
       const todayStr = new Date().toISOString().slice(0, 10);
       const todayOrders = dbOrders.filter(o => String(o.created_at).slice(0, 10) === todayStr);
@@ -636,8 +666,9 @@
     // --- EVENT HANDLERS ---
     $('show-login').onclick = () => { $('login-form').hidden = false; $('register-form').hidden = true; };
     $('show-register').onclick = () => { $('login-form').hidden = true; $('register-form').hidden = false; };
-    $('admin-entry').onclick = () => showPage('manage');
+    
     $('manage-back').onclick = () => showPage(currentCustomer ? 'home' : 'auth');
+
     $('home-search').oninput = renderMenu;
     $('menu-search').oninput = renderMenu;
     $('detail-back').onclick = () => showPage('menu');
@@ -645,7 +676,6 @@
 
     document.querySelectorAll('[data-page]').forEach(b => b.onclick = () => showPage(b.dataset.page));
 
-    // Navigasi Tab Kasir (Pesanan, Laporan, Produk, Bayar)
     function switchTab(activeBtnId, activePanelId) {
       ['tab-btn-orders', 'tab-btn-reports', 'tab-btn-catalog', 'tab-btn-pay'].forEach(id => {
         $(id).className = 'soft text-xs py-2 px-1 rounded-lg';
@@ -663,7 +693,6 @@
     $('tab-btn-catalog').onclick = () => switchTab('tab-btn-catalog', 'menu-form');
     $('tab-btn-pay').onclick = () => switchTab('tab-btn-pay', 'payment-form');
 
-    // Auth Login Supabase
     $('login-form').onsubmit = async e => {
       e.preventDefault();
       const phone = $('login-phone').value.trim();
@@ -676,7 +705,6 @@
       message('Berhasil masuk.');
     };
 
-    // Auth Register Supabase
     $('register-form').onsubmit = async e => {
       e.preventDefault();
       const name = $('register-name').value.trim();
@@ -697,7 +725,6 @@
       message('Keluar dari akun.');
     };
 
-    // Tambah Produk + Upload Bucket Otomatis
     $('menu-form').onsubmit = async e => {
       e.preventDefault();
       const name = $('manage-menu-name').value.trim();
@@ -716,7 +743,6 @@
       message('Produk berhasil disimpan ke Supabase!');
     };
 
-    // Tambah Metode Pembayaran/QRIS + Upload Bucket Otomatis
     $('payment-form').onsubmit = async e => {
       e.preventDefault();
       const name = $('manage-pay-name').value.trim();
@@ -734,7 +760,6 @@
       message('Metode pembayaran berhasil disimpan!');
     };
 
-    // Proses Checkout & Simpan ke DB Supabase
     $('checkout-form').onsubmit = async e => {
       e.preventDefault();
       if (!cart.size || !currentCustomer) return;
@@ -768,7 +793,6 @@
       message('Pesanan berhasil dibuat dan dikirim ke sistem kasir!');
     };
 
-    // Inisialisasi awal aplikasi
     async function initApp() {
       await initSupabaseStorage();
       await fetchAppData();
