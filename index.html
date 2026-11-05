@@ -47,7 +47,7 @@
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, setDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, setDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyA0ksXFs247mY7sAOlsDmdR_7kCyF5AVOc",
@@ -63,7 +63,7 @@
 
         let cartPelanggan = {};
         let menuCache = [];
-        let isKasirLoggedIn = false;
+        let activeKasirAkun = null;
         let activeKategoriHome = 'Semua';
         let activeKategoriCatalog = 'Semua';
         let selectedProductForDetail = null;
@@ -88,12 +88,14 @@
             }
         };
 
-        // Realtime Jam
         function updateClock() {
             const el = document.getElementById('realtime-clock');
             if(el) {
                 const now = new Date();
-                el.innerText = now.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
+                const options = { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' };
+                const tglStr = now.toLocaleDateString('id-ID', options);
+                const jamStr = now.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
+                el.innerText = `${tglStr} | ${jamStr}`;
             }
         }
         setInterval(updateClock, 1000);
@@ -111,13 +113,11 @@
             } catch(e){}
         }
 
-        // Navigasi Antar Screen Marketplace
         window.switchScreen = function(screenId) {
             document.querySelectorAll('.screen').forEach(s => s.hidden = true);
             const target = document.getElementById(screenId);
             if(target) target.hidden = false;
 
-            // Update Bottom Nav Active State
             document.querySelectorAll('.nav button').forEach(btn => {
                 if(btn.dataset.target === screenId) btn.classList.add('active');
                 else btn.classList.remove('active');
@@ -127,12 +127,108 @@
             if(screenId === 'orders-screen') loadOrdersRealtime();
             if(screenId === 'catalog-screen') renderCatalogProducts();
             if(screenId === 'home-screen') renderHomeProducts();
+            if(screenId === 'profile-screen') checkPelangganLoginState();
             
             const shell = document.querySelector('.app-shell');
             if(shell) shell.scrollTop = 0;
         };
 
-        // Secret Kasir Trigger via Triple-Tap Logo di Home
+        function checkPelangganLoginState() {
+            let savedPelanggan = localStorage.getItem('melky_pelanggan');
+            const unregBox = document.getElementById('profile-unregistered');
+            const regBox = document.getElementById('profile-registered');
+
+            if(savedPelanggan) {
+                let p = JSON.parse(savedPelanggan);
+                unregBox.hidden = true;
+                regBox.hidden = false;
+                document.getElementById('prof-avatar').src = p.foto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80';
+                document.getElementById('prof-nama-teks').innerText = p.nama;
+                document.getElementById('prof-wa-teks').innerText = p.wa;
+            } else {
+                unregBox.hidden = false;
+                regBox.hidden = true;
+            }
+        }
+
+        window.daftarPelanggan = async function() {
+            let nama = document.getElementById('reg-nama').value.trim();
+            let wa = document.getElementById('reg-wa').value.trim();
+            let fileInput = document.getElementById('reg-foto');
+
+            if(!nama || !wa) { alert('Nama dan Nomor WhatsApp wajib diisi!'); return; }
+
+            let saveProfile = async (fotoUrl) => {
+                let pelangganData = {
+                    nama, wa,
+                    foto: fotoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+                    joinedAt: Date.now()
+                };
+                localStorage.setItem('melky_pelanggan', JSON.stringify(pelangganData));
+                try { await addDoc(collection(db, "pelanggan_melky"), pelangganData); } catch(e){}
+
+                alert('🎉 Berhasil Mendaftar / Masuk Profil!');
+                checkPelangganLoginState();
+                const cartNama = document.getElementById('cart-nama-pemesan');
+                if(cartNama) cartNama.value = nama;
+            };
+
+            if(fileInput.files && fileInput.files[0]) {
+                let reader = new FileReader();
+                reader.onload = async (e) => { await saveProfile(e.target.result); };
+                reader.readAsDataURL(fileInput.files[0]);
+            } else {
+                let old = JSON.parse(localStorage.getItem('melky_pelanggan'));
+                await saveProfile(old ? old.foto : null);
+            }
+        };
+
+        window.bukaEditProfil = function() {
+            let p = JSON.parse(localStorage.getItem('melky_pelanggan'));
+            if(!p) return;
+            document.getElementById('edit-nama').value = p.nama;
+            document.getElementById('edit-wa').value = p.wa;
+            document.getElementById('profile-registered').hidden = true;
+            document.getElementById('profile-edit-box').hidden = false;
+        };
+
+        window.batalEditProfil = function() {
+            document.getElementById('profile-edit-box').hidden = true;
+            document.getElementById('profile-registered').hidden = false;
+        };
+
+        window.simpanEditProfil = async function() {
+            let nama = document.getElementById('edit-nama').value.trim();
+            let wa = document.getElementById('edit-wa').value.trim();
+            let fileInput = document.getElementById('edit-foto');
+            let old = JSON.parse(localStorage.getItem('melky_pelanggan'));
+
+            if(!nama || !wa) { alert('Nama dan WA wajib diisi!'); return; }
+
+            let updateProc = async (fotoUrl) => {
+                let updated = { nama, wa, foto: fotoUrl, joinedAt: old.joinedAt };
+                localStorage.setItem('melky_pelanggan', JSON.stringify(updated));
+                alert('✨ Profil berhasil diperbarui!');
+                document.getElementById('profile-edit-box').hidden = true;
+                checkPelangganLoginState();
+            };
+
+            if(fileInput.files && fileInput.files[0]) {
+                let reader = new FileReader();
+                reader.onload = async (e) => { await updateProc(e.target.result); };
+                reader.readAsDataURL(fileInput.files[0]);
+            } else {
+                await updateProc(old.foto);
+            }
+        };
+
+        window.logoutPelanggan = function() {
+            if(confirm('Keluar dari sesi profil ini?')) {
+                localStorage.removeItem('melky_pelanggan');
+                checkPelangganLoginState();
+            }
+        };
+
         let tapCount = 0;
         let tapTimer = null;
         window.handleLogoTap = function() {
@@ -142,33 +238,51 @@
             } else if(tapCount === 3) {
                 clearTimeout(tapTimer);
                 tapCount = 0;
-                openKasirPanel();
+                bukaPilihanKasirModal();
             }
         };
 
-        window.openKasirPanel = function() {
-            if(!isKasirLoggedIn) {
-                let p = prompt("Masukkan Password Kasir:");
-                if(p === "admin123") {
-                    isKasirLoggedIn = true;
-                } else {
-                    alert("Password salah!");
-                    return;
-                }
-            }
-            document.querySelectorAll('.screen').forEach(s => s.hidden = true);
-            document.getElementById('kasir-screen').hidden = false;
-            document.getElementById('bottom-nav').hidden = true;
-            loadAdminData();
+        window.bukaPilihanKasirModal = function() {
+            let pilih = prompt("Pilih Login Kasir:\n1. Kasir 1\n2. Kasir 2\n\nMasukkan angka pilihan (1 atau 2):");
+            if(pilih === "1") authKasir("kasir1");
+            else if(pilih === "2") authKasir("kasir2");
+            else if(pilih !== null) alert("Pilihan tidak valid!");
         };
+
+        async function authKasir(kasirId) {
+            let pass = prompt(`Masukkan Password untuk ${kasirId === 'kasir1' ? 'Kasir 1' : 'Kasir 2'}:`);
+            let defaultPass = kasirId === 'kasir1' ? 'kasir123' : 'kasir456';
+            
+            if(pass === defaultPass) {
+                const docRef = doc(db, "kasir_melky", kasirId);
+                let docSnap = await getDoc(docRef);
+                
+                if(docSnap.exists()) {
+                    activeKasirAkun = { id: kasirId, ...docSnap.data() };
+                } else {
+                    activeKasirAkun = {
+                        id: kasirId,
+                        nama: kasirId === 'kasir1' ? 'Kasir Utama 1' : 'Kasir Shift 2',
+                        waKasir: kasirId === 'kasir1' ? '628123456789' : '628987654321'
+                    };
+                    await setDoc(docRef, activeKasirAkun);
+                }
+
+                document.querySelectorAll('.screen').forEach(s => s.hidden = true);
+                document.getElementById('kasir-screen').hidden = false;
+                document.getElementById('bottom-nav').hidden = true;
+                loadAdminData();
+            } else {
+                alert("Password salah!");
+            }
+        }
 
         window.exitKasir = function() {
-            isKasirLoggedIn = false;
+            activeKasirAkun = null;
             document.getElementById('bottom-nav').hidden = false;
             switchScreen('home-screen');
         };
 
-        // Sinkronisasi Menu Realtime dari Firestore
         function initMenuSync() {
             onSnapshot(collection(db, "menu_melky"), (snapshot) => {
                 menuCache = [];
@@ -180,7 +294,6 @@
             });
         }
 
-        // Render Home Products
         window.filterHomeCat = function(cat) {
             activeKategoriHome = cat;
             document.querySelectorAll('#home-filters button').forEach(b => {
@@ -219,7 +332,6 @@
             });
         }
 
-        // Render Catalog Products
         window.filterCatalogCat = function(cat) {
             activeKategoriCatalog = cat;
             document.querySelectorAll('#catalog-filters button').forEach(b => {
@@ -258,7 +370,6 @@
             });
         }
 
-        // Buka Detail Produk
         window.openProductDetail = function(id) {
             const item = menuCache.find(i => i.id === id);
             if(!item) return;
@@ -283,7 +394,7 @@
             qEl.innerText = q;
         };
 
-        window.tambahDariDetailKeCart = function() {
+        window.tambahDdariDetailKeCart = function() {
             if(!selectedProductForDetail) return;
             let qty = parseInt(document.getElementById('detail-qty').innerText);
             let suhu = document.getElementById('detail-suhu').value;
@@ -304,12 +415,18 @@
             switchScreen('cart-screen');
         };
 
-        // Render Keranjang
         function renderCart() {
             const container = document.getElementById('cart-items-container');
             const summary = document.getElementById('cart-summary-box');
             if(!container) return;
             container.innerHTML = '';
+
+            let savedPelanggan = localStorage.getItem('melky_pelanggan');
+            if(savedPelanggan) {
+                let p = JSON.parse(savedPelanggan);
+                const inputNama = document.getElementById('cart-nama-pemesan');
+                if(inputNama && !inputNama.value) inputNama.value = p.nama;
+            }
 
             let keys = Object.keys(cartPelanggan);
             if(keys.length === 0) {
@@ -396,19 +513,21 @@
             if(Object.keys(cartPelanggan).length === 0) { alert('Keranjang masih kosong!'); return; }
 
             let total = Object.values(cartPelanggan).reduce((s, i) => s + (i.harga * i.qty), 0);
+            let activeWaKasir = "628123456789";
+
             let newOrder = {
                 idPesanan: 'MLK-' + Date.now().toString().slice(-6),
                 waktu: new Date().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'}) + ' ' + new Date().toLocaleDateString('id-ID'),
                 timestamp: Date.now(),
-                nama, metodeBayar: metode, items: {...cartPelanggan}, total
+                nama, metodeBayar: metode, items: {...cartPelanggan}, total,
+                status: 'Menunggu Konfirmasi' // Status awal pesanan
             };
 
             try {
                 await addDoc(collection(db, "pesanan_melky"), newOrder);
                 
                 getDocs(collection(db, "pengaturan_melky")).then((snap) => {
-                    let waNum = "628123456789";
-                    snap.forEach(d => { if(d.data().waKasir) waNum = d.data().waKasir; });
+                    snap.forEach(d => { if(d.data().waKasir) activeWaKasir = d.data().waKasir; });
 
                     let waText = `*KAFE MELKY - PESANAN BARU*\nPelanggan: *${nama}*\nBayar: *${metode}*\n\n*Rincian:*\n`;
                     Object.values(cartPelanggan).forEach(i => {
@@ -417,11 +536,10 @@
                     waText += `\n*TOTAL: Rp ${total.toLocaleString('id-ID')}*`;
 
                     if(confirm("Pesanan berhasil dikirim ke Kasir! Ingin kirim juga via WhatsApp?")) {
-                        window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(waText)}`, '_blank');
+                        window.open(`https://wa.me/${activeWaKasir}?text=${encodeURIComponent(waText)}`, '_blank');
                     }
 
                     cartPelanggan = {};
-                    document.getElementById('cart-nama-pemesan').value = '';
                     switchScreen('orders-screen');
                 });
             } catch(e) {
@@ -429,7 +547,7 @@
             }
         };
 
-        // Riwayat Pesanan Sesi
+        // --- RIWAYAT PESANAN DENGAN STATUS PROGRESS REALTIME ---
         function loadOrdersRealtime() {
             const container = document.getElementById('orders-list-container');
             if(!container) return;
@@ -453,11 +571,18 @@
                 snapshot.forEach(docSnap => {
                     let p = docSnap.data();
                     let itemList = Object.values(p.items).map(i => `${i.nama} (${i.qty}x)`).join(', ');
+                    
+                    // Warna status badge dinamis
+                    let statusColor = "bg-amber-100 text-amber-800 border-amber-300";
+                    let statusText = p.status || "Menunggu Konfirmasi";
+                    if(statusText.includes("Disiapkan")) statusColor = "bg-blue-100 text-blue-800 border-blue-300";
+                    if(statusText.includes("Selesai") || statusText.includes("Siap")) statusColor = "bg-emerald-100 text-emerald-800 border-emerald-300";
+
                     container.innerHTML += `
-                        <div class="bg-stone-50 border border-stone-200 p-3.5 rounded-2xl space-y-2">
+                        <div class="bg-stone-50 border border-stone-200 p-3.5 rounded-2xl space-y-2 shadow-xs">
                             <div class="flex justify-between items-center text-xs">
                                 <span class="font-bold text-stone-900">${p.nama}</span>
-                                <span class="text-stone-400">${p.waktu}</span>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${statusColor}">${statusText}</span>
                             </div>
                             <p class="text-xs text-stone-600">${itemList}</p>
                             <div class="flex justify-between items-center pt-2 border-t border-stone-200 text-xs">
@@ -472,20 +597,28 @@
 
         // --- ADMIN KASIR DASHBOARD ---
         function loadAdminData() {
-            // Load Menu Table
+            if(activeKasirAkun) {
+                document.getElementById('kasir-title-badge').innerText = `Panel Admin (${activeKasirAkun.nama})`;
+                document.getElementById('kasir-set-wa').value = activeKasirAkun.waKasir || '';
+            }
+
             onSnapshot(collection(db, "menu_melky"), (snap) => {
                 const tbody = document.getElementById('admin-menu-tbody');
                 if(!tbody) return;
                 tbody.innerHTML = '';
+                if(snap.empty) {
+                    tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-center text-stone-400 text-xs">Belum ada menu di database.</td></tr>`;
+                    return;
+                }
                 snap.forEach(d => {
                     let m = d.data();
                     tbody.innerHTML += `
                         <tr class="border-b border-stone-100">
-                            <td class="p-2"><img src="${m.foto}" class="w-8 h-8 object-contain rounded-lg bg-stone-50"></td>
+                            <td class="p-2"><img src="${m.foto || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=500&q=80'}" class="w-8 h-8 object-contain rounded-lg bg-stone-50"></td>
                             <td class="p-2 font-bold text-stone-800">${m.nama}</td>
                             <td class="p-2 text-amber-700">Rp ${m.harga.toLocaleString('id-ID')}</td>
                             <td class="p-2 text-center space-x-1">
-                                <button onclick="adminEditMenu('${d.id}', '${m.nama}', ${m.harga}, '${m.kategori}')" class="px-2 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-bold">Edit</button>
+                                <button onclick="adminEditMenu('${d.id}', '${m.nama.replace(/'/g, "\\'")}', ${m.harga}, '${m.kategori}')" class="px-2 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-bold">Edit</button>
                                 <button onclick="adminHapusMenu('${d.id}')" class="px-2 py-1 bg-rose-50 text-rose-600 rounded text-[10px] font-bold">Hapus</button>
                             </td>
                         </tr>
@@ -493,11 +626,9 @@
                 });
             });
 
-            // Load Config
             onSnapshot(doc(db, "pengaturan_melky", "config"), (docSnap) => {
                 if(docSnap.exists()) {
                     let d = docSnap.data();
-                    document.getElementById('set-wa').value = d.waKasir || '';
                     document.getElementById('set-metode').value = d.metodeBayarConfig || 'Cash, QRIS, BCA';
                     document.getElementById('set-rek').value = d.noRekening || '';
                     document.getElementById('set-promo').value = d.runningText || '';
@@ -508,7 +639,6 @@
                 }
             });
 
-            // Load Live Orders Table
             const liveTbody = document.getElementById('admin-live-orders-tbody');
             onSnapshot(query(collection(db, "pesanan_melky"), orderBy("timestamp", "desc")), (snap) => {
                 if(!liveTbody) return;
@@ -520,18 +650,32 @@
                 snap.forEach(d => {
                     let p = d.data();
                     let list = Object.values(p.items).map(i => `${i.nama} (${i.qty}x)`).join(', ');
+                    let currentStatus = p.status || 'Menunggu Konfirmasi';
+
                     liveTbody.innerHTML += `
                         <tr class="border-b border-stone-100">
                             <td class="p-2 text-stone-500">${p.waktu}</td>
                             <td class="p-2 font-bold text-stone-900">${p.nama}</td>
                             <td class="p-2 text-stone-600">${list}</td>
                             <td class="p-2 font-extrabold text-amber-700">Rp ${p.total.toLocaleString('id-ID')}</td>
-                            <td class="p-2 text-center"><button onclick="adminSelesaiPesanan('${d.id}')" class="px-2 py-1 bg-emerald-50 text-emerald-700 rounded text-[10px] font-bold">Selesai</button></td>
+                            <td class="p-2 text-center space-x-1">
+                                <button onclick="updateStatusPesanan('${d.id}', 'Sedang Disiapkan 👨‍🍳')" class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-bold">Proses</button>
+                                <button onclick="updateStatusPesanan('${d.id}', 'Pesanan Siap / Selesai ✅')" class="px-2 py-1 bg-emerald-50 text-emerald-700 rounded text-[10px] font-bold">Selesai</button>
+                            </td>
                         </tr>
                     `;
                 });
             });
         }
+
+        window.updateStatusPesanan = async function(id, statusBaru) {
+            try {
+                await updateDoc(doc(db, "pesanan_melky", id), { status: statusBaru });
+                alert(`Status pesanan diperbarui menjadi: "${statusBaru}"`);
+            } catch(e) {
+                alert("Gagal memperbarui status.");
+            }
+        };
 
         window.adminSimpanMenu = async function() {
             let id = document.getElementById('adm-edit-id').value;
@@ -540,23 +684,27 @@
             let kategori = document.getElementById('adm-kategori').value;
             let fileInput = document.getElementById('adm-file');
 
-            if(!nama || !harga) { alert('Nama dan Harga wajib diisi!'); return; }
+            if(!nama || isNaN(harga)) { alert('Nama dan Harga menu wajib diisi dengan benar!'); return; }
 
             let saveToDb = async (fotoUrl) => {
-                if(id) {
-                    let data = {nama, harga, kategori};
-                    if(fotoUrl) data.foto = fotoUrl;
-                    await updateDoc(doc(db, "menu_melky", id), data);
-                    alert('Menu diperbarui!');
-                } else {
-                    let fotoFinal = fotoUrl || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=500&q=80';
-                    await addDoc(collection(db, "menu_melky"), {nama, harga, kategori, foto: fotoFinal});
-                    alert('Menu ditambahkan!');
+                try {
+                    if(id) {
+                        let data = {nama, harga, kategori};
+                        if(fotoUrl) data.foto = fotoUrl;
+                        await updateDoc(doc(db, "menu_melky", id), data);
+                        alert('✨ Menu berhasil diperbarui!');
+                    } else {
+                        let fotoFinal = fotoUrl || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=500&q=80';
+                        await addDoc(collection(db, "menu_melky"), {nama, harga, kategori, foto: fotoFinal});
+                        alert('🎉 Menu berhasil ditambahkan!');
+                    }
+                    document.getElementById('adm-edit-id').value = '';
+                    document.getElementById('adm-nama').value = '';
+                    document.getElementById('adm-harga').value = '';
+                    document.getElementById('adm-file').value = '';
+                } catch(err) {
+                    alert('Gagal menyimpan ke database.');
                 }
-                document.getElementById('adm-edit-id').value = '';
-                document.getElementById('adm-nama').value = '';
-                document.getElementById('adm-harga').value = '';
-                document.getElementById('adm-file').value = '';
             };
 
             if(fileInput.files && fileInput.files[0]) {
@@ -573,24 +721,36 @@
             document.getElementById('adm-nama').value = nama;
             document.getElementById('adm-harga').value = harga;
             document.getElementById('adm-kategori').value = kategori;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         };
 
         window.adminHapusMenu = async function(id) {
-            if(confirm('Hapus menu ini?')) await deleteDoc(doc(db, "menu_melky", id));
+            if(confirm('Yakin ingin menghapus menu ini?')) {
+                await deleteDoc(doc(db, "menu_melky", id));
+                alert('Menu berhasil dihapus.');
+            }
+        };
+
+        window.adminSimpanPengaturanKasir = async function() {
+            let waKasirBaru = document.getElementById('kasir-set-wa').value.trim();
+            if(!activeKasirAkun) return;
+
+            activeKasirAkun.waKasir = waKasirBaru;
+            await setDoc(doc(db, "kasir_melky", activeKasirAkun.id), activeKasirAkun, {merge:true});
+            alert('Nomor WhatsApp kasir ini berhasil diperbarui!');
         };
 
         window.adminSimpanPengaturan = async function() {
-            let waKasir = document.getElementById('set-wa').value.trim();
             let metodeBayarConfig = document.getElementById('set-metode').value.trim();
             let noRekening = document.getElementById('set-rek').value.trim();
             let runningText = document.getElementById('set-promo').value.trim();
             let qrisFile = document.getElementById('set-qris-file');
 
             let saveConfig = async (qrisFoto) => {
-                let payload = {waKasir, metodeBayarConfig, noRekening, runningText};
+                let payload = {metodeBayarConfig, noRekening, runningText};
                 if(qrisFoto) payload.qrisFoto = qrisFoto;
                 await setDoc(doc(db, "pengaturan_melky", "config"), payload, {merge:true});
-                alert('Pengaturan berhasil disimpan!');
+                alert('Pengaturan umum kafe berhasil disimpan!');
             };
 
             if(qrisFile.files && qrisFile.files[0]) {
@@ -600,10 +760,6 @@
             } else {
                 await saveConfig(null);
             }
-        };
-
-        window.adminSelesaiPesanan = async function(id) {
-            if(confirm('Tandai pesanan selesai dan hapus?')) await deleteDoc(doc(db, "pesanan_melky", id));
         };
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -632,8 +788,8 @@
                     <p class="text-[11px] uppercase tracking-wider font-bold text-amber-400">Selamat Datang di</p>
                     <h2 class="serif text-2xl font-bold tracking-wide cursor-pointer select-none" onclick="handleLogoTap()">Kafe Melky</h2>
                 </div>
-                <div class="bg-stone-900/80 px-3 py-1 rounded-xl text-xs font-bold text-amber-300 border border-amber-500/30">
-                    <span id="realtime-clock">--:--</span>
+                <div class="bg-stone-900/80 px-3 py-1.5 rounded-xl text-[11px] font-bold text-amber-300 border border-amber-500/30 text-right">
+                    <span id="realtime-clock">Memuat Waktu...</span>
                 </div>
             </div>
         </header>
@@ -644,7 +800,6 @@
                 <input type="search" id="home-search" oninput="renderHomeProducts()" placeholder="Cari minuman / makanan..." class="form-field">
             </div>
 
-            <!-- Kategori Pil Beranda -->
             <div class="flex gap-2 overflow-x-auto pb-1" id="home-filters">
                 <button type="button" class="pill active" data-cat="Semua" onclick="filterHomeCat('Semua')">Semua</button>
                 <button type="button" class="pill" data-cat="Minuman" onclick="filterHomeCat('Minuman')">Minuman</button>
@@ -719,7 +874,7 @@
                 </div>
             </div>
 
-            <button onclick="tambahDariDetailKeCart()" class="action-btn mt-4">Tambah ke Keranjang</button>
+            <button onclick="tambahDdariDetailKeCart()" class="action-btn mt-4">Tambah ke Keranjang</button>
         </div>
     </section>
 
@@ -754,7 +909,7 @@
         </div>
     </section>
 
-    <!-- 5. SCREEN: RIWAYAT PESANAN -->
+    <!-- 5. SCREEN: RIWAYAT PESANAN (REALTIME STATUS) -->
     <section id="orders-screen" class="screen" hidden>
         <header class="p-4 bg-white border-b border-stone-200">
             <h2 class="serif text-xl font-bold text-stone-900">Pesanan Saya</h2>
@@ -764,28 +919,68 @@
         </div>
     </section>
 
-    <!-- 6. SCREEN: PROFIL -->
+    <!-- 6. SCREEN: PROFIL PELANGGAN -->
     <section id="profile-screen" class="screen" hidden>
         <header class="p-4 bg-white border-b border-stone-200">
-            <h2 class="serif text-xl font-bold text-stone-900">Profil Kafe</h2>
+            <h2 class="serif text-xl font-bold text-stone-900">Profil Pelanggan</h2>
         </header>
-        <div class="p-5 text-center space-y-4">
-            <div class="w-16 h-16 rounded-3xl bg-amber-50 text-amber-700 border-2 border-amber-600 flex items-center justify-center text-2xl mx-auto font-bold">☕</div>
-            <h3 class="serif text-lg font-bold text-stone-900">Kafe Melky</h3>
-            <p class="text-xs text-stone-600 leading-relaxed">Ruang hangat untuk menikmati racikan kopi pilihan terbaik setiap hari.</p>
+        
+        <div class="p-4 space-y-4">
+            <div id="profile-unregistered" class="bg-white p-5 rounded-2xl border border-stone-200 space-y-3 shadow-sm">
+                <h3 class="font-bold text-sm text-stone-900">Daftar / Masuk Member</h3>
+                <p class="text-xs text-stone-500">Masukkan Nama dan No WhatsApp Anda agar pesanan lebih mudah tercatat.</p>
+                <input type="text" id="reg-nama" placeholder="Nama Lengkap" class="form-field">
+                <input type="text" id="reg-wa" placeholder="No WhatsApp (Cth: 62812...)" class="form-field">
+                <div>
+                    <label class="block text-xs font-semibold text-stone-700 mb-1">Unggah Foto Profil (Kamera / Galeri)</label>
+                    <input type="file" id="reg-foto" accept="image/*" class="text-xs text-stone-600 file:py-1 file:px-3 file:rounded-xl file:border-0 file:bg-amber-600 file:text-white">
+                </div>
+                <button onclick="daftarPelanggan()" class="action-btn text-xs py-2.5">Simpan & Masuk</button>
+            </div>
+
+            <div id="profile-registered" class="bg-white p-5 rounded-2xl border border-stone-200 text-center space-y-3 shadow-sm" hidden>
+                <img id="prof-avatar" class="w-20 h-20 rounded-full object-cover mx-auto border-2 border-amber-600 bg-stone-100 p-0.5">
+                <div>
+                    <h3 id="prof-nama-teks" class="serif text-lg font-bold text-stone-900"></h3>
+                    <p id="prof-wa-teks" class="text-xs text-stone-500 font-mono mt-0.5"></p>
+                </div>
+                <div class="pt-2 flex gap-2">
+                    <button onclick="bukaEditProfil()" class="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold py-2.5 rounded-xl transition">Edit Profil</button>
+                    <button onclick="logoutPelanggan()" class="px-4 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold py-2.5 rounded-xl transition">Keluar</button>
+                </div>
+            </div>
+
+            <div id="profile-edit-box" class="bg-white p-5 rounded-2xl border border-stone-200 space-y-3 shadow-sm" hidden>
+                <h3 class="font-bold text-sm text-stone-900">Edit Profil Anda</h3>
+                <input type="text" id="edit-nama" placeholder="Nama Lengkap" class="form-field">
+                <input type="text" id="edit-wa" placeholder="No WhatsApp" class="form-field">
+                <div>
+                    <label class="block text-xs font-semibold text-stone-700 mb-1">Ganti Foto Profil</label>
+                    <input type="file" id="edit-foto" accept="image/*" class="text-xs text-stone-600 file:py-1 file:px-3 file:rounded-xl file:border-0 file:bg-amber-600 file:text-white">
+                </div>
+                <div class="flex gap-2 pt-1">
+                    <button onclick="simpanEditProfil()" class="flex-1 action-btn text-xs py-2.5 bg-emerald-600 hover:bg-emerald-700">Simpan Perubahan</button>
+                    <button onclick="batalEditProfil()" class="px-4 bg-stone-200 text-stone-700 text-xs font-bold py-2.5 rounded-xl">Batal</button>
+                </div>
+            </div>
         </div>
     </section>
 
-    <!-- 7. SCREEN: PANEL ADMIN KASIR RAHASIA -->
+    <!-- 7. SCREEN: PANEL ADMIN KASIR -->
     <section id="kasir-screen" class="screen" hidden>
         <header class="p-4 bg-stone-900 text-white flex justify-between items-center">
-            <h2 class="font-bold text-sm text-amber-400">Panel Admin Kasir</h2>
-            <button onclick="exitKasir()" class="text-xs text-rose-400 font-bold px-2.5 py-1 bg-rose-900/30 rounded-lg">Keluar</button>
+            <h2 id="kasir-title-badge" class="font-bold text-sm text-amber-400">Panel Admin Kasir</h2>
+            <button onclick="exitKasir()" class="text-xs text-rose-400 font-bold px-2.5 py-1 bg-rose-900/30 rounded-lg">Keluar Kasir</button>
         </header>
 
         <div class="p-4 space-y-5">
-            <!-- Kelola Menu -->
-            <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3">
+            <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3 shadow-sm">
+                <h3 class="font-bold text-xs text-stone-900">Nomor WhatsApp Kasir yang Bertugas</h3>
+                <input type="text" id="kasir-set-wa" placeholder="No WA Kasir (62812...)" class="form-field">
+                <button onclick="adminSimpanPengaturanKasir()" class="action-btn text-xs py-2 bg-amber-600 hover:bg-amber-700">Simpan No WA Kasir</button>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3 shadow-sm">
                 <h3 class="font-bold text-xs text-stone-900">Tambah / Edit Menu</h3>
                 <input type="hidden" id="adm-edit-id">
                 <input type="text" id="adm-nama" placeholder="Nama Menu" class="form-field">
@@ -800,17 +995,22 @@
                 <input type="file" id="adm-file" accept="image/*" class="text-xs text-stone-600 file:py-1 file:px-3 file:rounded-xl file:border-0 file:bg-amber-600 file:text-white">
                 <button onclick="adminSimpanMenu()" class="action-btn text-xs py-2.5">Simpan Menu</button>
                 
-                <div class="max-h-40 overflow-y-auto">
+                <div class="max-h-48 overflow-y-auto mt-2">
                     <table class="w-full text-left text-xs">
-                        <tbody id="admin-menu-tbody"></tbody>
+                        <thead>
+                            <tr class="text-stone-400 border-b">
+                                <th class="p-2">Foto</th><th class="p-2">Nama</th><th class="p-2">Harga</th><th class="p-2 text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-menu-tbody">
+                            <tr><td colspan="4" class="p-3 text-center text-stone-400">Memuat menu...</td></tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- Pengaturan -->
-            <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3">
-                <h3 class="font-bold text-xs text-stone-900">Pengaturan Pembayaran & WhatsApp</h3>
-                <input type="text" id="set-wa" placeholder="No WA Kasir (62812...)" class="form-field">
+            <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3 shadow-sm">
+                <h3 class="font-bold text-xs text-stone-900">Pengaturan Umum Kafe</h3>
                 <input type="text" id="set-metode" placeholder="Metode (Cash, QRIS, BCA)" class="form-field">
                 <input type="text" id="set-rek" placeholder="No Rekening Bank" class="form-field">
                 <input type="text" id="set-promo" placeholder="Running Text / Promo" class="form-field">
@@ -819,24 +1019,26 @@
                 <button onclick="adminSimpanPengaturan()" class="action-btn text-xs py-2.5 bg-emerald-600 hover:bg-emerald-700">Simpan Pengaturan</button>
             </div>
 
-            <!-- Live Orders -->
-            <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3">
-                <h3 class="font-bold text-xs text-stone-900">Pesanan Masuk Live</h3>
+            <!-- Live Orders DENGAN TOMBOL UPDATE STATUS -->
+            <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3 shadow-sm">
+                <h3 class="font-bold text-xs text-stone-900">Pesanan Masuk Live & Kontrol Status</h3>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
                         <thead>
                             <tr class="text-stone-400 border-b">
-                                <th class="p-2">Waktu</th><th class="p-2">Pemesan</th><th class="p-2">Pesanan</th><th class="p-2">Total</th><th class="p-2 text-center">Aksi</th>
+                                <th class="p-2">Waktu</th><th class="p-2">Pemesan</th><th class="p-2">Pesanan</th><th class="p-2">Total</th><th class="p-2 text-center">Update Status</th>
                             </tr>
                         </thead>
-                        <tbody id="admin-live-orders-tbody"></tbody>
+                        <tbody id="admin-live-orders-tbody">
+                            <tr><td colspan="5" class="p-4 text-center text-stone-400">Menghubungkan ke database...</td></tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- BOTTOM NAVIGATION BAR (Ala Marketplace) -->
+    <!-- BOTTOM NAVIGATION BAR -->
     <nav id="bottom-nav" class="nav">
         <button type="button" data-target="home-screen" class="active" onclick="switchScreen('home-screen')">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10H3z"/><path d="M9 20v-7h6v7"/></svg>
