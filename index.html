@@ -92,6 +92,12 @@
 
    <!-- Area Pelanggan ROADSIDE STALL -->
    <div id="customer-area" class="flex flex-col flex-1 overflow-hidden relative pb-16" hidden>
+    
+    <!-- Teks Berjalan / Running Text Pengumuman Pelanggan -->
+    <div id="customer-marquee-banner" class="bg-amber-100 text-amber-900 px-3 py-2 text-xs font-bold border-b border-amber-200 overflow-hidden whitespace-nowrap" hidden>
+      <marquee id="customer-marquee-text" scrollamount="5"></marquee>
+    </div>
+
     <!-- Menu Lengkap (Halaman Utama Pelanggan) -->
     <section id="menu-page" class="page" aria-labelledby="menu-heading">
      <h2 id="menu-heading" class="serif mb-2 text-2xl">Menu Pilihan</h2>
@@ -109,14 +115,20 @@
     <!-- Detail Produk -->
     <section id="detail-page" class="page" hidden>
      <button id="detail-back" class="soft mb-5" type="button">← Kembali</button>
-     <img id="detail-image" class="w-full h-52 object-cover rounded-2xl mb-4" alt="Produk" hidden>
+     <div class="relative w-full h-52 mb-4">
+       <img id="detail-image" class="w-full h-full object-cover rounded-2xl" alt="Produk" hidden>
+       <div id="detail-watermark" class="absolute inset-0 flex items-center justify-center bg-black/40 rounded-2xl" hidden>
+         <span class="bg-red-600 text-white font-black text-2xl px-6 py-2 rounded-xl -rotate-12 shadow-2xl tracking-widest border-2 border-white">HABIS</span>
+       </div>
+     </div>
      <h2 id="detail-heading" class="serif text-3xl mb-3"></h2>
      <p id="detail-category" class="muted mb-2"></p>
      <p id="detail-description" class="mb-5"></p>
      <p id="detail-price" class="font-bold mb-3 text-lg"></p>
+     <p id="detail-stock-info" class="text-sm font-semibold mb-4 text-stone-600"></p>
 
      <!-- Kontrol Jumlah (Qty) saat pesan -->
-     <div class="flex items-center gap-3 mb-5">
+     <div id="detail-qty-wrapper" class="flex items-center gap-3 mb-5">
       <label class="font-bold">Jumlah Porsi:</label>
       <div class="flex items-center border rounded-xl overflow-hidden bg-white">
        <button type="button" id="qty-minus" class="px-4 py-2 bg-stone-100 font-bold">-</button>
@@ -208,13 +220,14 @@
     <button id="manage-back" class="soft mb-5" type="button">← Kembali</button>
     <h2 class="serif mb-2 text-2xl">Dashboard Kasir &amp; Kelola Toko</h2>
 
-    <!-- Tab Navigasi Kasir (5 Tombol) -->
-    <div class="grid grid-cols-5 gap-1 mb-4">
-     <button id="tab-btn-orders" class="action text-xs py-2 px-1 rounded-lg">Pesanan</button>
-     <button id="tab-btn-reports" class="soft text-xs py-2 px-1 rounded-lg">Laporan</button>
-     <button id="tab-btn-catalog" class="soft text-xs py-2 px-1 rounded-lg">Produk</button>
-     <button id="tab-btn-pay" class="soft text-xs py-2 px-1 rounded-lg">Bayar</button>
-     <button id="tab-btn-config" class="soft text-xs py-2 px-1 rounded-lg">No WA</button>
+    <!-- Tab Navigasi Kasir (6 Tombol) -->
+    <div class="grid grid-cols-6 gap-1 mb-4 text-[11px]">
+     <button id="tab-btn-orders" class="action py-2 px-1 rounded-lg">Pesanan</button>
+     <button id="tab-btn-reports" class="soft py-2 px-1 rounded-lg">Laporan</button>
+     <button id="tab-btn-catalog" class="soft py-2 px-1 rounded-lg">Produk</button>
+     <button id="tab-btn-pay" class="soft py-2 px-1 rounded-lg">Bayar</button>
+     <button id="tab-btn-config" class="soft py-2 px-1 rounded-lg">No WA</button>
+     <button id="tab-btn-marquee" class="soft py-2 px-1 rounded-lg">Promo</button>
     </div>
 
     <!-- Panel 1: Live Pesanan Masuk -->
@@ -237,19 +250,34 @@
      </div>
     </div>
 
-    <!-- Panel 2: Tambah Produk -->
+    <!-- Panel 2: Tambah / Edit Produk -->
     <form id="menu-form" class="card space-y-3" hidden>
-     <h3 class="serif text-xl">Tambah Produk Marketplace</h3>
+     <h3 id="form-product-title" class="serif text-xl">Tambah Produk Marketplace</h3>
+     <input type="hidden" id="edit-product-id">
      <label class="block font-bold">Nama Menu</label>
      <input id="manage-menu-name" class="field" required>
      <label class="block font-bold">Harga (Rp)</label>
      <input id="manage-menu-price" class="field" type="number" required>
+     <label class="block font-bold">Stok Produk</label>
+     <input id="manage-menu-stock" class="field" type="number" required value="10">
      <label class="block font-bold">Kategori</label>
      <select id="manage-menu-category" class="field"><option>Kopi</option><option>Non-kopi</option><option>Makanan</option></select>
-     <label class="block font-bold">Foto Produk</label>
+     <label class="block font-bold">Foto Produk (Opsional ganti)</label>
      <input id="manage-menu-file" type="file" accept="image/*" class="field bg-stone-50">
-     <button class="action w-full mt-2" type="submit">Simpan Produk ke Cloud</button>
+     <div class="flex gap-2 pt-2">
+       <button id="cancel-edit-product" class="soft flex-1" type="button" hidden>Batal</button>
+       <button id="submit-product-btn" class="action flex-1" type="submit">Simpan Produk ke Cloud</button>
+     </div>
     </form>
+
+    <!-- Panel Tambahan: Daftar Produk untuk Kelola (Edit/Hapus) -->
+    <div id="cashier-catalog-panel" class="space-y-3 mt-4" hidden>
+      <div class="flex justify-between items-center">
+        <h3 class="serif text-xl">Daftar Menu & Stok</h3>
+        <button id="btn-show-add-product" class="action text-xs py-2 px-3">+ Tambah Produk</button>
+      </div>
+      <div id="cashier-products-list" class="space-y-3"></div>
+    </div>
 
     <!-- Panel 3: Tambah Metode Bayar & QRIS -->
     <form id="payment-form" class="card space-y-3" hidden>
@@ -271,6 +299,25 @@
      <input id="config-wa-input" class="field" placeholder="Contoh: 6281234567890">
      <button id="save-wa-config" class="action w-full" type="button">Simpan Nomor WhatsApp</button>
     </div>
+
+    <!-- Panel 5: Pengaturan Teks Berjalan (Running Text / Promo) -->
+    <div id="cashier-marquee-panel" class="card space-y-3" hidden>
+      <h3 class="serif text-xl">Pengaturan Teks Berjalan (Promo)</h3>
+      <p class="text-sm muted">Aktifkan untuk menampilkan informasi pengumuman atau promo berjalan di bagian atas halaman pelanggan.</p>
+      <div class="flex items-center gap-3 py-2">
+        <label class="font-bold">Status Teks Berjalan:</label>
+        <div class="flex gap-2">
+          <button type="button" id="marquee-on-btn" class="soft px-4 py-2 font-bold">ON</button>
+          <button type="button" id="marquee-off-btn" class="soft px-4 py-2 font-bold">OFF</button>
+        </div>
+      </div>
+      <div id="marquee-input-wrap" class="space-y-2">
+        <label class="block font-bold">Isi Pesan Promosi</label>
+        <textarea id="config-marquee-input" class="field" rows="3" placeholder="Contoh: Diskon spesial hari ini setiap pembelian 2 cup kopi gratis 1 pastry!"></textarea>
+      </div>
+      <button id="save-marquee-config" class="action w-full" type="button">Simpan & Perbarui Teks Berjalan</button>
+    </div>
+
    </section>
   </main>
 
@@ -311,6 +358,8 @@
     const cart = new Map();
 
     let cashierWhatsApp = localStorage.getItem('arumi_cashier_wa') || '6281234567890';
+    let marqueeActive = localStorage.getItem('arumi_marquee_active') === 'true';
+    let marqueeTextContent = localStorage.getItem('arumi_marquee_text') || '';
 
     let deferredPrompt;
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -338,6 +387,8 @@
         tapCount = 0;
         showPage('manage');
         $('config-wa-input').value = cashierWhatsApp;
+        $('config-marquee-input').value = marqueeTextContent;
+        updateMarqueeUIState();
         message('Mode Kasir Terbuka 🔐');
       } else {
         tapTimer = setTimeout(() => { tapCount = 0; }, 800);
@@ -383,7 +434,9 @@
       renderMenu();
       renderOrders();
       renderCashierOrders();
+      renderCashierProducts();
       renderReports();
+      renderCustomerMarquee();
     }
 
     function setupRealtimeListener() {
@@ -416,6 +469,17 @@
         $('floating-cart-total').textContent = money(totalPrice);
       } else {
         $('floating-cart').hidden = true;
+      }
+    }
+
+    function renderCustomerMarquee() {
+      const banner = $('customer-marquee-banner');
+      const marquee = $('customer-marquee-text');
+      if (marqueeActive && marqueeTextContent.trim()) {
+        marquee.textContent = marqueeTextContent;
+        banner.hidden = false;
+      } else {
+        banner.hidden = true;
       }
     }
 
@@ -453,8 +517,14 @@
     }
 
     function addItemWithQty(item, qty = 1) {
+      if (Number(item.stock) <= 0) {
+        return message('Maaf, stok produk ini sedang habis.');
+      }
       const old = cart.get(item.id);
       const currentCount = old ? old.qty : 0;
+      if (currentCount + qty > Number(item.stock)) {
+        return message(`Stok tidak mencukupi! Sisa stok: ${item.stock}`);
+      }
       cart.set(item.id, {...item, qty: currentCount + qty});
       message(`${qty}× ${item.name} ditambahkan ke keranjang.`);
       renderMenu();
@@ -463,29 +533,44 @@
 
     function productCard(item) {
       const card = document.createElement('article');
-      card.className = 'card flex flex-col justify-between gap-3';
+      card.className = 'card flex flex-col justify-between gap-3 relative overflow-hidden';
+
+      const isHabis = Number(item.stock) <= 0;
 
       const content = document.createElement('div');
       content.style.cursor = 'pointer';
       content.onclick = () => openDetail(item);
 
+      // Gambar produk dengan Watermark jika Habis
+      const imgContainer = document.createElement('div');
+      imgContainer.className = 'relative w-full h-28 mb-3';
+      
       if (item.image_url) {
         const img = document.createElement('img');
         img.src = item.image_url;
         img.alt = item.name;
-        img.className = 'w-full h-28 object-cover rounded-xl mb-3';
-        content.append(img);
+        img.className = 'w-full h-full object-cover rounded-xl';
+        imgContainer.append(img);
       }
+
+      if (isHabis) {
+        const watermark = document.createElement('div');
+        watermark.className = 'absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl';
+        watermark.innerHTML = '<span class="bg-red-600 text-white font-black text-sm px-3 py-1 rounded-lg -rotate-12 shadow-lg tracking-wider border border-white">HABIS</span>';
+        imgContainer.append(watermark);
+      }
+      content.append(imgContainer);
+
       const tag = document.createElement('p');
-      tag.className = 'muted text-xs mb-2';
-      tag.textContent = item.category;
+      tag.className = 'muted text-xs mb-1';
+      tag.textContent = item.category + (isHabis ? ' • (Stok Habis)' : ` • Stok: ${item.stock}`);
 
       const title = document.createElement('h3');
       title.className = 'font-bold leading-snug';
       title.textContent = item.name;
 
       const price = document.createElement('p');
-      price.className = 'muted mt-2';
+      price.className = 'muted mt-1';
       price.textContent = money(item.price);
 
       content.append(tag, title, price);
@@ -495,8 +580,14 @@
 
       const existingCartItem = cart.get(item.id);
 
-      if (existingCartItem) {
-        // Tombol berubah jadi kontrol kuantitas dinamis
+      if (isHabis) {
+        const habisBtn = document.createElement('button');
+        habisBtn.type = 'button';
+        habisBtn.className = 'action text-sm w-full bg-stone-400 cursor-not-allowed';
+        habisBtn.disabled = true;
+        habisBtn.textContent = 'Stok Habis';
+        actions.append(habisBtn);
+      } else if (existingCartItem) {
         const qtyContainer = document.createElement('div');
         qtyContainer.className = 'flex items-center justify-between border rounded-xl overflow-hidden bg-stone-50 w-full';
 
@@ -526,10 +617,14 @@
         plusBtn.textContent = '+';
         plusBtn.onclick = (e) => {
           e.stopPropagation();
-          existingCartItem.qty += 1;
-          cart.set(item.id, existingCartItem);
-          renderMenu();
-          updateFloatingCart();
+          if (existingCartItem.qty < Number(item.stock)) {
+            existingCartItem.qty += 1;
+            cart.set(item.id, existingCartItem);
+            renderMenu();
+            updateFloatingCart();
+          } else {
+            message('Stok maksimum tercapai.');
+          }
         };
 
         qtyContainer.append(minusBtn, qtySpan, plusBtn);
@@ -550,13 +645,30 @@
     function openDetail(item) {
       detailItem = item;
       currentQty = 1;
+      const isHabis = Number(item.stock) <= 0;
+
       $('qty-value').textContent = currentQty;
       $('detail-image').src = item.image_url || '';
       $('detail-image').hidden = !item.image_url;
+      $('detail-watermark').hidden = !isHabis;
       $('detail-heading').textContent = item.name;
       $('detail-category').textContent = item.category;
       $('detail-description').textContent = item.description || 'Sajian spesial kafe kami dengan rasa nikmat.';
       $('detail-price').textContent = money(item.price);
+      $('detail-stock-info').textContent = `Sisa Stok: ${item.stock} porsi`;
+
+      if (isHabis) {
+        $('detail-qty-wrapper').hidden = true;
+        $('detail-order').textContent = 'Stok Habis (Tidak Dapat Dipesan)';
+        $('detail-order').disabled = true;
+        $('detail-order').className = 'action w-full bg-stone-400 cursor-not-allowed';
+      } else {
+        $('detail-qty-wrapper').hidden = false;
+        $('detail-order').textContent = 'Tambah ke Keranjang';
+        $('detail-order').disabled = false;
+        $('detail-order').className = 'action w-full';
+      }
+
       showPage('detail');
     }
 
@@ -623,10 +735,14 @@
         plusBtn.className = 'soft px-2.5 py-1 text-sm font-bold';
         plusBtn.textContent = '+';
         plusBtn.onclick = () => {
-          item.qty += 1;
-          cart.set(item.id, item);
-          renderCart();
-          updateFloatingCart();
+          if (item.qty < Number(item.stock)) {
+            item.qty += 1;
+            cart.set(item.id, item);
+            renderCart();
+            updateFloatingCart();
+          } else {
+            message('Stok maksimum tercapai.');
+          }
         };
 
         const rem = document.createElement('button');
@@ -762,6 +878,65 @@
       });
     }
 
+    // Render daftar produk kasir untuk edit / hapus / atur stok
+    function renderCashierProducts() {
+      const list = $('cashier-products-list');
+      if (!list) return;
+      list.replaceChildren();
+
+      if (!dbProducts.length) {
+        list.innerHTML = '<p class="muted text-sm">Belum ada produk.</p>';
+        return;
+      }
+
+      for (const p of dbProducts) {
+        const card = document.createElement('article');
+        card.className = 'card flex justify-between items-center gap-3';
+        card.innerHTML = `
+          <div>
+            <h4 class="font-bold">${p.name}</h4>
+            <p class="text-xs muted">${p.category} | Harga: ${money(p.price)} | Stok: <span class="font-bold text-amber-700">${p.stock}</span></p>
+          </div>
+          <div class="flex gap-2">
+            <button class="soft text-xs py-1 px-3 font-bold btn-edit" data-id="${p.id}">Edit</button>
+            <button class="text-red-600 text-xs py-1 px-2 font-bold btn-del" data-id="${p.id}">Hapus</button>
+          </div>
+        `;
+        list.append(card);
+      }
+
+      list.querySelectorAll('.btn-edit').forEach(btn => {
+        btn.onclick = () => {
+          const id = btn.dataset.id;
+          const prod = dbProducts.find(x => x.id == id);
+          if (!prod) return;
+
+          $('edit-product-id').value = prod.id;
+          $('manage-menu-name').value = prod.name;
+          $('manage-menu-price').value = prod.price;
+          $('manage-menu-stock').value = prod.stock ?? 10;
+          $('manage-menu-category').value = prod.category;
+          $('form-product-title').textContent = 'Edit Produk: ' + prod.name;
+          $('cancel-edit-product').hidden = false;
+          $('submit-product-btn').textContent = 'Perbarui Produk';
+
+          // Pindah ke tab form produk
+          switchTab('tab-btn-catalog', 'menu-form');
+        };
+      });
+
+      list.querySelectorAll('.btn-del').forEach(btn => {
+        btn.onclick = async () => {
+          if (!confirm('Yakin ingin menghapus produk ini?')) return;
+          const id = btn.dataset.id;
+          const { error } = await supabaseClient.from('products').delete().eq('id', id);
+          if (error) return message('Gagal menghapus produk: ' + error.message);
+          message('Produk berhasil dihapus.');
+          fetchAppData();
+        };
+      });
+    }
+
     function renderReports() {
       const todayStr = new Date().toISOString().slice(0, 10);
       const todayOrders = dbOrders.filter(o => String(o.created_at).slice(0, 10) === todayStr);
@@ -792,8 +967,12 @@
       }
     };
     $('qty-plus').onclick = () => {
-      currentQty++;
-      $('qty-value').textContent = currentQty;
+      if (detailItem && currentQty < Number(detailItem.stock)) {
+        currentQty++;
+        $('qty-value').textContent = currentQty;
+      } else {
+        message('Stok maksimum tercapai.');
+      }
     };
 
     $('detail-order').onclick = () => { 
@@ -823,7 +1002,8 @@
         id: 'custom_' + Date.now(),
         name: 'Catatan: ' + text,
         price: 0,
-        qty: 1
+        qty: 1,
+        stock: 999
       };
       cart.set(customItem.id, customItem);
       $('custom-text').value = '';
@@ -835,12 +1015,12 @@
     document.querySelectorAll('[data-page]').forEach(b => b.onclick = () => showPage(b.dataset.page));
 
     function switchTab(activeBtnId, activePanelId) {
-      ['tab-btn-orders', 'tab-btn-reports', 'tab-btn-catalog', 'tab-btn-pay', 'tab-btn-config'].forEach(id => {
-        $(id).className = 'soft text-xs py-2 px-1 rounded-lg';
+      ['tab-btn-orders', 'tab-btn-reports', 'tab-btn-catalog', 'tab-btn-pay', 'tab-btn-config', 'tab-btn-marquee'].forEach(id => {
+        $(id).className = 'soft py-2 px-1 rounded-lg text-[11px]';
       });
-      $(activeBtnId).className = 'action text-xs py-2 px-1 rounded-lg';
+      $(activeBtnId).className = 'action py-2 px-1 rounded-lg text-[11px]';
 
-      ['cashier-orders-panel', 'cashier-reports-panel', 'menu-form', 'payment-form', 'cashier-config-panel'].forEach(id => {
+      ['cashier-orders-panel', 'cashier-reports-panel', 'menu-form', 'cashier-catalog-panel', 'payment-form', 'cashier-config-panel', 'cashier-marquee-panel'].forEach(id => {
         $(id).hidden = true;
       });
       $(activePanelId).hidden = false;
@@ -848,9 +1028,63 @@
 
     $('tab-btn-orders').onclick = () => switchTab('tab-btn-orders', 'cashier-orders-panel');
     $('tab-btn-reports').onclick = () => { switchTab('tab-btn-reports', 'cashier-reports-panel'); renderReports(); };
-    $('tab-btn-catalog').onclick = () => switchTab('tab-btn-catalog', 'menu-form');
+    $('tab-btn-catalog').onclick = () => { 
+      switchTab('tab-btn-catalog', 'cashier-catalog-panel'); 
+      renderCashierProducts();
+    };
+    $('btn-show-add-product').onclick = () => {
+      $('edit-product-id').value = '';
+      $('form-product-title').textContent = 'Tambah Produk Marketplace';
+      $('manage-menu-name').value = '';
+      $('manage-menu-price').value = '';
+      $('manage-menu-stock').value = '10';
+      $('cancel-edit-product').hidden = true;
+      $('submit-product-btn').textContent = 'Simpan Produk ke Cloud';
+      $('cashier-catalog-panel').hidden = true;
+      $('menu-form').hidden = false;
+    };
+    $('cancel-edit-product').onclick = () => {
+      $('menu-form').hidden = true;
+      $('cashier-catalog-panel').hidden = false;
+    };
+
     $('tab-btn-pay').onclick = () => switchTab('tab-btn-pay', 'payment-form');
     $('tab-btn-config').onclick = () => switchTab('tab-btn-config', 'cashier-config-panel');
+    $('tab-btn-marquee').onclick = () => switchTab('tab-btn-marquee', 'cashier-marquee-panel');
+
+    // Kontrol ON / OFF Teks Berjalan
+    function updateMarqueeUIState() {
+      if (marqueeActive) {
+        $('marquee-on-btn').className = 'action px-4 py-2 font-bold';
+        $('marquee-off-btn').className = 'soft px-4 py-2 font-bold';
+        $('marquee-input-wrap').hidden = false;
+      } else {
+        $('marquee-on-btn').className = 'soft px-4 py-2 font-bold';
+        $('marquee-off-btn').className = 'action px-4 py-2 font-bold';
+        $('marquee-input-wrap').hidden = true;
+      }
+    }
+
+    $('marquee-on-btn').onclick = () => {
+      marqueeActive = true;
+      updateMarqueeUIState();
+    };
+
+    $('marquee-off-btn').onclick = () => {
+      marqueeActive = false;
+      updateMarqueeUIState();
+    };
+
+    $('save-marquee-config').onclick = () => {
+      const textVal = $('config-marquee-input').value.trim();
+      marqueeTextContent = textVal;
+      localStorage.setItem('arumi_marquee_active', marqueeActive);
+      localStorage.setItem('arumi_marquee_text', marqueeTextContent);
+      renderCustomerMarquee();
+      message('Pengaturan Teks Berjalan berhasil disimpan! ✅');
+    };
+
+    updateMarqueeUIState();
 
     $('save-wa-config').onclick = () => {
       const newWa = $('config-wa-input').value.trim();
@@ -906,22 +1140,43 @@
       message('Keluar dari akun.');
     };
 
+    // Simpan / Update Produk (Tambah atau Edit)
     $('menu-form').onsubmit = async e => {
       e.preventDefault();
+      const editId = $('edit-product-id').value;
       const name = $('manage-menu-name').value.trim();
       const price = Number($('manage-menu-price').value);
+      const stock = Number($('manage-menu-stock').value);
       const category = $('manage-menu-category').value;
       const fileInput = $('manage-menu-file').files[0];
 
-      message('Memproses gambar...');
-      const imageUrl = await uploadToBucket(fileInput);
+      message('Memproses data...');
+      let imageUrl = '';
+      if (fileInput) {
+        imageUrl = await uploadToBucket(fileInput);
+      }
 
-      const { error } = await supabaseClient.from('products').insert([{ name, price, category, image_url: imageUrl, description: 'Produk marketplace baru.' }]);
-      if (error) return message('Gagal simpan produk: ' + error.message);
+      if (editId) {
+        // Mode Edit
+        const updatePayload = { name, price, stock, category };
+        if (imageUrl) updatePayload.image_url = imageUrl;
+
+        const { error } = await supabaseClient.from('products').update(updatePayload).eq('id', editId);
+        if (error) return message('Gagal update produk: ' + error.message);
+        message('Produk berhasil diperbarui!');
+      } else {
+        // Mode Tambah Baru
+        const newPayload = { name, price, stock, category, image_url: imageUrl || 'https://yyteszpzfdlxkwuiftvz.supabase.co/storage/v1/object/public/arumi-assets/cafe_kopi_w800.jpg', description: 'Produk marketplace baru.' };
+        const { error } = await supabaseClient.from('products').insert([newPayload]);
+        if (error) return message('Gagal simpan produk: ' + error.message);
+        message('Produk berhasil disimpan ke Supabase!');
+      }
 
       e.target.reset();
+      $('edit-product-id').value = '';
+      $('menu-form').hidden = true;
+      $('cashier-catalog-panel').hidden = false;
       fetchAppData();
-      message('Produk berhasil disimpan ke Supabase!');
     };
 
     $('payment-form').onsubmit = async e => {
