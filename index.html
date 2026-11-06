@@ -33,8 +33,8 @@
     .page{padding:22px 22px 32px;flex:1;overflow-y:auto;animation:fadeIn 0.25s ease-in-out}
     @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
     .notice{background:#f7f1e9;border-radius:12px;padding:12px;color:#654b31}
-    .nav{position:sticky;bottom:0;background:#fffefa;border-top:1px solid #eee6dc;display:grid;grid-template-columns:repeat(5,1fr);z-index:5}
-    .nav button{padding:13px 2px;color:#806f5f;font-size:11px;font-weight:700;background:none;border:none}
+    .nav{position:sticky;bottom:0;background:#fffefa;border-top:1px solid #eee6dc;display:grid;grid-template-columns:repeat(3,1fr);z-index:5}
+    .nav button{padding:13px 2px;color:#806f5f;font-size:12px;font-weight:700;background:none;border:none}
     .nav button.active{color:#a36c25;background:#faf2e7}
     .chips{display:flex;gap:8px;overflow-x:auto;padding:3px 0 12px}
     .chips button{white-space:nowrap}
@@ -91,26 +91,16 @@
    </section>
 
    <!-- Area Pelanggan ROADSIDE STALL -->
-   <div id="customer-area" class="flex flex-col flex-1 overflow-hidden" hidden>
-    <!-- Beranda -->
-    <section id="home-page" class="page" aria-labelledby="home-heading">
-     <p class="muted mb-1">Pilihan terbaik hari ini</p>
-     <h2 id="home-heading" class="serif mb-3 text-2xl">Awali harimu dengan kopi segar.</h2>
-     <label class="block font-bold mb-2">Cari produk marketplace</label>
-     <input id="home-search" class="field mb-4" type="search" placeholder="Cari menu...">
-     <div id="home-categories" class="chips"></div>
-     <h3 class="serif mt-3 mb-3 text-xl">Menu Populer</h3>
-     <div id="popular-list" class="grid grid-cols-2 gap-3"></div>
-    </section>
-
-    <!-- Menu Lengkap -->
-    <section id="menu-page" class="page" hidden aria-labelledby="menu-heading">
-     <h2 id="menu-heading" class="serif mb-2 text-2xl">Semua Menu</h2>
+   <div id="customer-area" class="flex flex-col flex-1 overflow-hidden relative pb-16" hidden>
+    <!-- Menu Lengkap (Halaman Utama Pelanggan) -->
+    <section id="menu-page" class="page" aria-labelledby="menu-heading">
+     <h2 id="menu-heading" class="serif mb-2 text-2xl">Menu Pilihan</h2>
      <input id="menu-search" class="field mb-4" type="search" placeholder="Cari menu...">
      <div id="menu-categories" class="chips"></div>
-     <div id="menu-list" class="grid grid-cols-2 gap-3"></div>
+     <div id="menu-list" class="grid grid-cols-2 gap-3 pb-16"></div>
+     
      <h3 class="serif mt-8 mb-3 text-xl">Custom Request / Catatan Khusus</h3>
-     <form id="custom-form" class="card">
+     <form id="custom-form" class="card mb-12">
       <textarea id="custom-text" class="field" maxlength="400" rows="3" required placeholder="Contoh: Less ice, extra gula aren..."></textarea>
       <button class="action mt-3 w-full" type="submit">Tambah Catatan ke Keranjang</button>
      </form>
@@ -151,7 +141,7 @@
 
     <!-- Checkout -->
     <section id="checkout-page" class="page" hidden>
-     <button id="checkout-back" class="soft mb-4" type="button">← Kembali ke Keranjang</button>
+     <button id="checkout-back" class="soft mb-4" type="button">← Kembali ke Menu</button>
      <h2 class="serif mb-4 text-2xl">Konfirmasi Pesanan</h2>
      <form id="checkout-form" class="space-y-4">
       <div>
@@ -196,11 +186,18 @@
      <button id="logout" class="soft w-full" type="button">Keluar Akun</button>
     </section>
 
-    <!-- Navigasi Bawah -->
+    <!-- Floating Cart Bar (Panel Melayang Keranjang di Bawah) -->
+    <div id="floating-cart" class="absolute bottom-16 left-4 right-4 bg-stone-900 text-white p-3 rounded-2xl shadow-xl flex items-center justify-between z-10" hidden>
+      <div>
+        <p id="floating-cart-count" class="text-xs text-amber-300 font-bold">0 Item</p>
+        <p id="floating-cart-total" class="font-bold text-sm">Rp0</p>
+      </div>
+      <button id="floating-cart-btn" class="action text-xs py-2 px-4">Lihat Keranjang &amp; Checkout →</button>
+    </div>
+
+    <!-- Navigasi Bawah (Disederhanakan jadi 3 Tombol) -->
     <nav class="nav">
-     <button data-page="home" class="active">Beranda</button>
-     <button data-page="menu">Menu</button>
-     <button data-page="cart">Keranjang</button>
+     <button data-page="menu" class="active">Menu</button>
      <button data-page="orders">Pesanan</button>
      <button data-page="profile">Profil</button>
     </nav>
@@ -266,7 +263,7 @@
      <button class="action w-full mt-2" type="submit">Simpan Metode Pembayaran</button>
     </form>
 
-    <!-- Panel 4: Pengaturan Nomor WhatsApp Kasir (Baru) -->
+    <!-- Panel 4: Pengaturan Nomor WhatsApp Kasir -->
     <div id="cashier-config-panel" class="card space-y-3" hidden>
      <h3 class="serif text-xl">Pengaturan WhatsApp Kasir</h3>
      <p class="text-sm muted">Masukkan nomor WhatsApp kasir/toko yang akan menerima pesanan saat pelanggan menekan tombol kirim via WhatsApp.</p>
@@ -313,10 +310,8 @@
     let currentQty = 1;
     const cart = new Map();
 
-    // Ambil atau simpan No WA Toko di localStorage HP Kasir
     let cashierWhatsApp = localStorage.getItem('arumi_cashier_wa') || '6281234567890';
 
-    // Logika PWA Install Prompt
     let deferredPrompt;
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
@@ -334,7 +329,6 @@
       deferredPrompt = null;
     };
 
-    // Logika Secret Tap (Ketuk Header 3x untuk buka Dashboard Kasir)
     let tapCount = 0;
     let tapTimer = null;
     $('secret-trigger').onclick = () => {
@@ -412,6 +406,19 @@
       setTimeout(() => { $('message').hidden = true; }, 4000);
     }
 
+    function updateFloatingCart() {
+      const totalItems = [...cart.values()].reduce((sum, i) => sum + i.qty, 0);
+      const totalPrice = [...cart.values()].reduce((sum, i) => sum + (i.price * i.qty), 0);
+      
+      if (totalItems > 0 && currentPage !== 'checkout' && currentPage !== 'cart') {
+        $('floating-cart').hidden = false;
+        $('floating-cart-count').textContent = `${totalItems} Produk di Keranjang`;
+        $('floating-cart-total').textContent = money(totalPrice);
+      } else {
+        $('floating-cart').hidden = true;
+      }
+    }
+
     function showPage(name) {
       currentPage = name;
       $('auth-page').hidden = name !== 'auth';
@@ -426,11 +433,14 @@
       if (name === 'cart') renderCart();
       if (name === 'checkout') renderCheckout();
       if (name === 'orders') renderOrders();
+      
+      updateFloatingCart();
       window.scrollTo(0, 0);
     }
 
     function renderCategories(id) {
       const node = $(id);
+      if (!node) return;
       node.replaceChildren();
       for (const cat of ['Semua', 'Kopi', 'Non-kopi', 'Makanan']) {
         const btn = document.createElement('button');
@@ -446,7 +456,9 @@
       const old = cart.get(item.id);
       const currentCount = old ? old.qty : 0;
       cart.set(item.id, {...item, qty: currentCount + qty});
-      message(`${qty}× ${item.name} berhasil ditambahkan ke keranjang.`);
+      message(`${qty}× ${item.name} ditambahkan ke keranjang.`);
+      renderMenu();
+      updateFloatingCart();
     }
 
     function productCard(item) {
@@ -479,21 +491,58 @@
       content.append(tag, title, price);
 
       const actions = document.createElement('div');
-      actions.className = 'flex flex-wrap gap-2 pt-1';
+      actions.className = 'flex flex-wrap gap-2 pt-1 items-center';
 
-      const orderBtn = document.createElement('button');
-      orderBtn.type = 'button';
-      orderBtn.className = 'action text-sm flex-1';
-      orderBtn.textContent = '+ Pesan';
-      orderBtn.onclick = (e) => { e.stopPropagation(); addItemWithQty(item, 1); };
+      const existingCartItem = cart.get(item.id);
 
-      const detailBtn = document.createElement('button');
-      detailBtn.type = 'button';
-      detailBtn.className = 'soft text-sm flex-1';
-      detailBtn.textContent = 'Detail';
-      detailBtn.onclick = (e) => { e.stopPropagation(); openDetail(item); };
+      if (existingCartItem) {
+        // Tombol berubah jadi kontrol kuantitas dinamis
+        const qtyContainer = document.createElement('div');
+        qtyContainer.className = 'flex items-center justify-between border rounded-xl overflow-hidden bg-stone-50 w-full';
 
-      actions.append(orderBtn, detailBtn);
+        const minusBtn = document.createElement('button');
+        minusBtn.type = 'button';
+        minusBtn.className = 'px-3 py-2 bg-stone-200 font-bold text-sm';
+        minusBtn.textContent = '-';
+        minusBtn.onclick = (e) => {
+          e.stopPropagation();
+          if (existingCartItem.qty > 1) {
+            existingCartItem.qty -= 1;
+            cart.set(item.id, existingCartItem);
+          } else {
+            cart.delete(item.id);
+          }
+          renderMenu();
+          updateFloatingCart();
+        };
+
+        const qtySpan = document.createElement('span');
+        qtySpan.className = 'font-bold text-sm px-2';
+        qtySpan.textContent = existingCartItem.qty;
+
+        const plusBtn = document.createElement('button');
+        plusBtn.type = 'button';
+        plusBtn.className = 'px-3 py-2 bg-stone-200 font-bold text-sm';
+        plusBtn.textContent = '+';
+        plusBtn.onclick = (e) => {
+          e.stopPropagation();
+          existingCartItem.qty += 1;
+          cart.set(item.id, existingCartItem);
+          renderMenu();
+          updateFloatingCart();
+        };
+
+        qtyContainer.append(minusBtn, qtySpan, plusBtn);
+        actions.append(qtyContainer);
+      } else {
+        const orderBtn = document.createElement('button');
+        orderBtn.type = 'button';
+        orderBtn.className = 'action text-sm w-full';
+        orderBtn.textContent = '+ Pesan';
+        orderBtn.onclick = (e) => { e.stopPropagation(); addItemWithQty(item, 1); };
+        actions.append(orderBtn);
+      }
+
       card.append(content, actions);
       return card;
     }
@@ -512,21 +561,19 @@
     }
 
     function renderMenu() {
-      renderCategories('home-categories');
       renderCategories('menu-categories');
 
-      for (const [listId, searchId, popularOnly] of [['popular-list', 'home-search', true], ['menu-list', 'menu-search', false]]) {
-        const list = $(listId);
-        const q = $(searchId).value.trim().toLowerCase();
-        const matching = dbProducts.filter(item => (!popularOnly || item.category === 'Kopi') && (selectedCategory === 'Semua' || item.category === selectedCategory) && item.name.toLowerCase().includes(q));
+      const list = $('menu-list');
+      const searchInput = $('menu-search');
+      const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+      const matching = dbProducts.filter(item => (selectedCategory === 'Semua' || item.category === selectedCategory) && item.name.toLowerCase().includes(q));
 
-        list.replaceChildren(...matching.map(productCard));
-        if (!matching.length) {
-          const p = document.createElement('p');
-          p.className = 'muted col-span-2';
-          p.textContent = 'Tidak ada produk ditemukan.';
-          list.append(p);
-        }
+      list.replaceChildren(...matching.map(productCard));
+      if (!matching.length) {
+        const p = document.createElement('p');
+        p.className = 'muted col-span-2';
+        p.textContent = 'Tidak ada produk ditemukan.';
+        list.append(p);
       }
     }
 
@@ -564,6 +611,7 @@
             cart.delete(item.id);
           }
           renderCart();
+          updateFloatingCart();
         };
 
         const qtySpan = document.createElement('span');
@@ -578,13 +626,14 @@
           item.qty += 1;
           cart.set(item.id, item);
           renderCart();
+          updateFloatingCart();
         };
 
         const rem = document.createElement('button');
         rem.type = 'button';
         rem.className = 'text-red-600 text-xs font-bold px-2 py-1 ml-1';
         rem.textContent = 'Hapus';
-        rem.onclick = () => { cart.delete(item.id); renderCart(); };
+        rem.onclick = () => { cart.delete(item.id); renderCart(); updateFloatingCart(); };
 
         controls.append(minusBtn, qtySpan, plusBtn, rem);
         card.append(info, controls);
@@ -592,8 +641,8 @@
       }
     }
 
-        function renderCheckout() {
-      if (!cart.size) { showPage('cart'); return; }
+    function renderCheckout() {
+      if (!cart.size) { showPage('menu'); return; }
       $('buyer').value = currentCustomer.name;
       $('buyer-phone').value = currentCustomer.phone;
       $('checkout-total').textContent = 'Total Tagihan: ' + money(totalCart());
@@ -602,12 +651,10 @@
       options.replaceChildren();
       $('payment-detail-card').hidden = true;
 
-      // 1. Tambahkan metode pembayaran Cash (Tunai) secara manual
       const cashMethods = [
         { name: 'Cash (Tunai di Kasir)', account_info: 'Silakan lakukan pembayaran secara tunai langsung di kasir saat mengambil pesanan.', qr_url: '' }
       ];
 
-      // Gabungkan metode Cash dengan metode dari database (TF BCA, QRIS, dll)
       const activePay = [...cashMethods, ...dbPayments.filter(p => p.is_active !== false)];
 
       for (const p of activePay) {
@@ -634,7 +681,6 @@
         options.append(label);
       }
     }
-
 
     function renderOrders() {
       const list = $('orders-list');
@@ -732,13 +778,13 @@
     $('show-login').onclick = () => { $('login-form').hidden = false; $('register-form').hidden = true; };
     $('show-register').onclick = () => { $('login-form').hidden = true; $('register-form').hidden = false; };
 
-    $('manage-back').onclick = () => showPage(currentCustomer ? 'home' : 'auth');
+    $('manage-back').onclick = () => showPage(currentCustomer ? 'menu' : 'auth');
 
-    $('home-search').oninput = renderMenu;
-    $('menu-search').oninput = renderMenu;
+    if ($('menu-search')) {
+      $('menu-search').oninput = renderMenu;
+    }
     $('detail-back').onclick = () => showPage('menu');
 
-    // Kontrol Kuantitas (Plus & Minus) di Halaman Detail Produk
     $('qty-minus').onclick = () => {
       if (currentQty > 1) {
         currentQty--;
@@ -750,24 +796,25 @@
       $('qty-value').textContent = currentQty;
     };
 
-    // Tombol Pesan dari Detail Produk
     $('detail-order').onclick = () => { 
       if (detailItem) {
         addItemWithQty(detailItem, currentQty);
-        showPage('cart');
+        showPage('menu');
       }
     };
 
-    // Fungsionalitas Tombol Lanjut ke Checkout & Kembali
+    $('floating-cart-btn').onclick = () => {
+      showPage('cart');
+    };
+
     $('checkout-button').onclick = () => {
       showPage('checkout');
     };
 
     $('checkout-back').onclick = () => {
-      showPage('cart');
+      showPage('menu');
     };
 
-    // Handler Tambah Catatan Khusus
     $('custom-form').onsubmit = e => {
       e.preventDefault();
       const text = $('custom-text').value.trim();
@@ -781,12 +828,12 @@
       cart.set(customItem.id, customItem);
       $('custom-text').value = '';
       message('Catatan khusus ditambahkan ke keranjang.');
-      showPage('cart');
+      renderMenu();
+      updateFloatingCart();
     };
 
     document.querySelectorAll('[data-page]').forEach(b => b.onclick = () => showPage(b.dataset.page));
 
-    // Navigasi Tab Kasir (Diperbarui jadi 5 Tab)
     function switchTab(activeBtnId, activePanelId) {
       ['tab-btn-orders', 'tab-btn-reports', 'tab-btn-catalog', 'tab-btn-pay', 'tab-btn-config'].forEach(id => {
         $(id).className = 'soft text-xs py-2 px-1 rounded-lg';
@@ -805,7 +852,6 @@
     $('tab-btn-pay').onclick = () => switchTab('tab-btn-pay', 'payment-form');
     $('tab-btn-config').onclick = () => switchTab('tab-btn-config', 'cashier-config-panel');
 
-    // Simpan Nomor WhatsApp Kasir
     $('save-wa-config').onclick = () => {
       const newWa = $('config-wa-input').value.trim();
       if (!newWa) return alert('Masukkan nomor WhatsApp yang valid.');
@@ -814,7 +860,6 @@
       message('Nomor WhatsApp kasir berhasil disimpan! ✅');
     };
 
-    // Form Login (Diperbaiki agar toleran jika tabel profiles belum ada pengecekan ketat)
     $('login-form').onsubmit = async e => {
       e.preventDefault();
       const phone = $('login-phone').value.trim();
@@ -823,7 +868,6 @@
         let { data, error } = await supabaseClient.from('profiles').select('*').eq('phone', phone).single();
 
         if (error || !data) {
-          // Buat otomatis jika belum terdaftar agar pelanggan tidak gagal masuk
           const newName = 'Pelanggan ' + phone.slice(-4);
           const ins = await supabaseClient.from('profiles').insert([{ name: newName, phone, role: 'customer' }]).select().single();
           if (ins.error) {
@@ -835,7 +879,7 @@
         currentCustomer = data;
         $('profile-name').textContent = data.name;
         $('profile-phone').textContent = 'WhatsApp: ' + data.phone;
-        showPage('home');
+        showPage('menu');
         message('Berhasil masuk.');
       } catch (err) {
         message('Terjadi kesalahan koneksi database.');
@@ -851,7 +895,7 @@
       currentCustomer = data;
       $('profile-name').textContent = data.name;
       $('profile-phone').textContent = 'WhatsApp: ' + data.phone;
-      showPage('home');
+      showPage('menu');
       message('Pendaftaran akun berhasil.');
     };
 
@@ -924,7 +968,6 @@
       const { error } = await supabaseClient.from('orders').insert([newOrder]);
       if (error) return message('Gagal membuat pesanan: ' + error.message);
 
-      // Format Pesanan WhatsApp ke Toko/Kasir
       let targetWa = cashierWhatsApp;
       if (targetWa.startsWith('0')) targetWa = '62' + targetWa.slice(1);
 
@@ -937,7 +980,6 @@
       showPage('orders');
       fetchAppData();
 
-      // Buka WhatsApp Kasir secara otomatis
       window.open(`https://wa.me/${targetWa}?text=${waMessage}`, '_blank');
     };
 
