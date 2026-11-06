@@ -92,6 +92,17 @@
 
    <!-- Area Pelanggan ROADSIDE STALL -->
    <div id="customer-area" class="flex flex-col flex-1 overflow-hidden" hidden>
+    <!-- Beranda -->
+    <section id="home-page" class="page" aria-labelledby="home-heading">
+     <p class="muted mb-1">Pilihan terbaik hari ini</p>
+     <h2 id="home-heading" class="serif mb-3 text-2xl">Awali harimu dengan kopi segar.</h2>
+     <label class="block font-bold mb-2">Cari produk marketplace</label>
+     <input id="home-search" class="field mb-4" type="search" placeholder="Cari menu...">
+     <div id="home-categories" class="chips"></div>
+     <h3 class="serif mt-3 mb-3 text-xl">Menu Populer</h3>
+     <div id="popular-list" class="grid grid-cols-2 gap-3"></div>
+    </section>
+
     <!-- Menu Lengkap -->
     <section id="menu-page" class="page" hidden aria-labelledby="menu-heading">
      <h2 id="menu-heading" class="serif mb-2 text-2xl">Semua Menu</h2>
@@ -113,7 +124,7 @@
      <p id="detail-category" class="muted mb-2"></p>
      <p id="detail-description" class="mb-5"></p>
      <p id="detail-price" class="font-bold mb-3 text-lg"></p>
-     
+
      <!-- Kontrol Jumlah (Qty) saat pesan -->
      <div class="flex items-center gap-3 mb-5">
       <label class="font-bold">Jumlah Porsi:</label>
@@ -199,7 +210,7 @@
    <section id="manage-page" class="page" hidden>
     <button id="manage-back" class="soft mb-5" type="button">← Kembali</button>
     <h2 class="serif mb-2 text-2xl">Dashboard Kasir &amp; Kelola Toko</h2>
-    
+
     <!-- Tab Navigasi Kasir (5 Tombol) -->
     <div class="grid grid-cols-5 gap-1 mb-4">
      <button id="tab-btn-orders" class="action text-xs py-2 px-1 rounded-lg">Pesanan</button>
@@ -406,7 +417,7 @@
       $('auth-page').hidden = name !== 'auth';
       $('manage-page').hidden = name !== 'manage';
       $('customer-area').hidden = !currentCustomer || name === 'auth' || name === 'manage';
-      
+
       const customerPages = $('customer-area').querySelectorAll('section[id$="-page"]');
       customerPages.forEach(p => p.hidden = p.id !== name + '-page');
 
@@ -441,7 +452,7 @@
     function productCard(item) {
       const card = document.createElement('article');
       card.className = 'card flex flex-col justify-between gap-3';
-      
+
       const content = document.createElement('div');
       content.style.cursor = 'pointer';
       content.onclick = () => openDetail(item);
@@ -508,7 +519,7 @@
         const list = $(listId);
         const q = $(searchId).value.trim().toLowerCase();
         const matching = dbProducts.filter(item => (!popularOnly || item.category === 'Kopi') && (selectedCategory === 'Semua' || item.category === selectedCategory) && item.name.toLowerCase().includes(q));
-        
+
         list.replaceChildren(...matching.map(productCard));
         if (!matching.length) {
           const p = document.createElement('p');
@@ -534,10 +545,10 @@
       for (const item of cart.values()) {
         const card = document.createElement('article');
         card.className = 'card flex justify-between gap-3 items-center';
-        
+
         const info = document.createElement('div');
         info.innerHTML = `<h3 class="font-bold">${item.name}</h3><p class="muted text-sm">${money(item.price)} × ${item.qty} = <span class="font-bold text-[#ba812f]">${money(item.price * item.qty)}</span></p>`;
-        
+
         const controls = document.createElement('div');
         controls.className = 'flex items-center gap-2';
 
@@ -598,7 +609,7 @@
 
       // Gabungkan metode Cash dengan metode dari database (TF BCA, QRIS, dll)
       const activePay = [...cashMethods, ...dbPayments.filter(p => p.is_active !== false)];
-      
+
       for (const p of activePay) {
         const label = document.createElement('label');
         label.className = 'card flex gap-2 items-center cursor-pointer';
@@ -607,7 +618,7 @@
         radio.name = 'payment';
         radio.value = p.name;
         radio.required = true;
-        
+
         radio.onchange = () => {
           $('payment-detail-card').hidden = false;
           $('payment-account-text').textContent = p.account_info || 'Silakan lakukan pembayaran sesuai instruksi.';
@@ -720,13 +731,13 @@
     // --- EVENT HANDLERS ---
     $('show-login').onclick = () => { $('login-form').hidden = false; $('register-form').hidden = true; };
     $('show-register').onclick = () => { $('login-form').hidden = true; $('register-form').hidden = false; };
-    
+
     $('manage-back').onclick = () => showPage(currentCustomer ? 'home' : 'auth');
 
     $('home-search').oninput = renderMenu;
     $('menu-search').oninput = renderMenu;
     $('detail-back').onclick = () => showPage('menu');
-    
+
     // Kontrol Kuantitas (Plus & Minus) di Halaman Detail Produk
     $('qty-minus').onclick = () => {
       if (currentQty > 1) {
@@ -807,10 +818,10 @@
     $('login-form').onsubmit = async e => {
       e.preventDefault();
       const phone = $('login-phone').value.trim();
-      
+
       try {
         let { data, error } = await supabaseClient.from('profiles').select('*').eq('phone', phone).single();
-        
+
         if (error || !data) {
           // Buat otomatis jika belum terdaftar agar pelanggan tidak gagal masuk
           const newName = 'Pelanggan ' + phone.slice(-4);
@@ -916,12 +927,12 @@
       // Format Pesanan WhatsApp ke Toko/Kasir
       let targetWa = cashierWhatsApp;
       if (targetWa.startsWith('0')) targetWa = '62' + targetWa.slice(1);
-      
+
       const orderSummaryText = items.join('\n- ');
       const waMessage = encodeURIComponent(
         `Halo Kasir Arumi Kafe,\n\nAda pesanan baru masuk! 🛒\n\n*No. Pesanan:* #${code}\n*Nama Pemesan:* ${buyer} (${number})\n*Waktu Ambil:* ${$('pickup').value}\n*Metode Bayar:* ${paymentMethod}\n\n*Daftar Menu:*\n- ${orderSummaryText}\n\n*Total Tagihan:* ${money(totalAmount)}\n\nMohon segera diproses ya. Terima kasih!`
       );
-      
+
       cart.clear();
       showPage('orders');
       fetchAppData();
