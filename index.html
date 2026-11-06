@@ -40,23 +40,11 @@
     .chips button{white-space:nowrap}
     .chips button.active{background:#ba812f;color:#fff}
     [hidden]{display:none!important}
-   @media print {
-  body * { 
-    visibility: hidden; 
-  } 
-  #print-area, #print-area * { 
-    visibility: visible; 
-  } 
-  #print-area { 
-    position: absolute; 
-    left: 0; 
-    top: 0; 
-    width: 58mm; /* Lebar standar kertas thermal kasir */
-    font-size: 11px;
-    background: white;
-    color: black;
-  }
-}
+    @media print {
+      body * { visibility: hidden; }
+      #print-area, #print-area * { visibility: visible; }
+      #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+    }
   </style>
 </head>
 <body class="scene">
@@ -308,7 +296,7 @@
      <h3 class="serif text-xl">Pengaturan WhatsApp Kasir</h3>
      <p class="text-sm muted">Masukkan nomor WhatsApp kasir/toko yang akan menerima pesanan saat pelanggan menekan tombol kirim via WhatsApp.</p>
      <label class="block font-bold">Nomor WhatsApp Toko</label>
-     <input id="config-wa-input" class="field" placeholder="Contoh: 6289611633319">
+     <input id="config-wa-input" class="field" placeholder="Contoh: 6281234567890">
      <button id="save-wa-config" class="action w-full" type="button">Simpan Nomor WhatsApp</button>
     </div>
 
@@ -332,21 +320,20 @@
 
    </section>
   </main>
-  
-  <!-- Area Struk yang akan dicetak -->
-<div id="print-area" hidden style="font-family: monospace; padding: 10px; background: white; color: black; width: 58mm;">
-  <div style="text-align: center; margin-bottom: 6px;">
-    <h3 style="font-weight: bold; font-size: 13px; margin: 0;">ARUMI KAFE & ROADSIDE STALL</h3>
-    <p style="font-size: 10px; margin: 2px 0;">Jl. Matraman Salemba GG.VIII No.88</p>
+
+  <!-- Area Tersembunyi Cetak Struk -->
+  <div id="print-area" hidden style="padding:20px; font-family:monospace; background:white; color:black;">
+   <h2 style="text-align:center; font-weight:bold;">ARUMI KAFE &amp; ROADSIDE STALL</h2>
+   <p style="text-align:center;">Jl. Matraman Salemba GG.VIII No.88</p>
+   <hr style="border-style:dashed;">
+   <p id="print-meta"></p>
+   <hr style="border-style:dashed;">
+   <div id="print-items"></div>
+   <hr style="border-style:dashed;">
+   <p id="print-total" style="font-weight:bold; text-align:right;"></p>
+   <p style="text-align:center; margin-top:20px;">*** TERIMA KASIH ***</p>
   </div>
-  <hr style="border: 0.5px dashed #000; margin: 4px 0;">
-  <div id="print-meta" style="font-size: 10px; margin-bottom: 4px;"></div>
-  <hr style="border: 0.5px dashed #000; margin: 4px 0;">
-  <div id="print-items" style="font-size: 11px; margin-bottom: 4px;"></div>
-  <hr style="border: 0.5px dashed #000; margin: 4px 0;">
-  <p id="print-total" style="font-weight: bold; font-size: 11px; text-align: right; margin: 4px 0;"></p>
-  <p style="text-align: center; font-size: 9px; margin-top: 10px;">*** TERIMA KASIH ***</p>
-</div>
+
   <script>
     // ==========================================
     // 1. KONFIGURASI SUPABASE ANDA
@@ -370,7 +357,7 @@
     let currentQty = 1;
     const cart = new Map();
 
-    let cashierWhatsApp = localStorage.getItem('arumi_cashier_wa') || '6289611633319';
+    let cashierWhatsApp = localStorage.getItem('arumi_cashier_wa') || '6281234567890';
     let marqueeActive = localStorage.getItem('arumi_marquee_active') === 'true';
     let marqueeTextContent = localStorage.getItem('arumi_marquee_text') || '';
 
@@ -877,27 +864,19 @@
       });
 
       list.querySelectorAll('.btn-print').forEach(btn => {
-  btn.onclick = () => {
-    const code = btn.dataset.code;
-    const order = dbOrders.find(o => o.code === code);
-    if (!order) return;
+        btn.onclick = () => {
+          const code = btn.dataset.code;
+          const order = dbOrders.find(o => o.code === code);
+          if (!order) return;
 
-    // Masukkan data ke dalam elemen print-area
-    $('print-meta').innerHTML = `No: #${order.code}<br>Pemesan: ${order.customer_name}<br>Waktu: ${new Date(order.created_at).toLocaleString('id-ID')}`;
-    $('print-items').innerHTML = (order.items || []).map(i => `<div style="margin-bottom: 2px;">• ${i}</div>`).join('');
-    $('print-total').textContent = `TOTAL: ${money(order.total_amount)}`;
+          $('print-meta').innerHTML = `No. Pesanan: #${order.code}<br>Pemesan: ${order.customer_name}<br>Waktu: ${new Date(order.created_at).toLocaleString('id-ID')}`;
+          $('print-items').innerHTML = (order.items || []).map(i => `<div>• ${i}</div>`).join('');
+          $('print-total').textContent = `TOTAL: ${money(order.total_amount)}`;
 
-    // Buka hidden agar elemen muncul saat dicetak
-    const printArea = $('print-area');
-    printArea.hidden = false;
-
-    // Panggil fungsi cetak browser
-    window.print();
-
-    // Sembunyikan kembali setelah dialog cetak ditutup
-    printArea.hidden = true;
-  };
-});
+          window.print();
+        };
+      });
+    }
 
     // Render daftar produk kasir untuk edit / hapus / atur stok
     function renderCashierProducts() {
