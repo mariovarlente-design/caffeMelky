@@ -85,7 +85,7 @@
     </form>
 
     <!-- Tombol Instal PWA -->
-    <button id="install-pwa-btn" class="action w-full mt-6 bg-stone-700 hover:bg-stone-800" type="button" hidden>
+    <button id="install-pwa-btn" class="action w-full mt-6 bg-stone-700 hover:bg-stone-800" type="button">
       📥 Instal Aplikasi ke Beranda HP
     </button>
    </section>
@@ -296,7 +296,7 @@
      <h3 class="serif text-xl">Pengaturan WhatsApp Kasir</h3>
      <p class="text-sm muted">Masukkan nomor WhatsApp kasir/toko yang akan menerima pesanan saat pelanggan menekan tombol kirim via WhatsApp.</p>
      <label class="block font-bold">Nomor WhatsApp Toko</label>
-     <input id="config-wa-input" class="field" placeholder="Contoh: 6281234567890">
+     <input id="config-wa-input" class="field" placeholder="Contoh: 62896116333319">
      <button id="save-wa-config" class="action w-full" type="button">Simpan Nomor WhatsApp</button>
     </div>
 
@@ -357,7 +357,7 @@
     let currentQty = 1;
     const cart = new Map();
 
-    let cashierWhatsApp = localStorage.getItem('arumi_cashier_wa') || '6281234567890';
+    let cashierWhatsApp = localStorage.getItem('arumi_cashier_wa') || '62896116333319';
     let marqueeActive = localStorage.getItem('arumi_marquee_active') === 'true';
     let marqueeTextContent = localStorage.getItem('arumi_marquee_text') || '';
 
