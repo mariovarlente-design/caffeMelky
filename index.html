@@ -41,10 +41,23 @@
     .chips button.active{background:#ba812f;color:#fff}
     [hidden]{display:none!important}
     @media print {
-      body * { visibility: hidden; }
-      #print-area, #print-area * { visibility: visible; }
-      #print-area { position: absolute; left: 0; top: 0; width: 100%; }
-    }
+  body * { 
+    visibility: hidden; 
+  } 
+  #print-area, #print-area * { 
+    visibility: visible; 
+  } 
+  #print-area { 
+    position: absolute; 
+    left: 0; 
+    top: 0; 
+    width: 58mm; /* Lebar standar printer thermal kecil */
+    font-size: 11px;
+    padding: 5px;
+    background: white;
+    color: black;
+  }
+}
   </style>
 </head>
 <body class="scene">
